@@ -1,0 +1,55 @@
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET AUTOCOMMIT = 0;
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+
+
+CREATE TABLE `entries` (
+  `ID` bigint(20) NOT NULL,
+  `RaceId` bigint(20) UNSIGNED NOT NULL,
+  `UserId` bigint(20) UNSIGNED DEFAULT NULL,
+  `Status` enum('Not ready','Ready','Done','Forfeited','Disqualified') COLLATE utf8_bin DEFAULT NULL,
+  `FinishedTime` time DEFAULT NULL,
+  `Place` int(11) DEFAULT NULL,
+  `Comment` tinytext COLLATE utf8_bin
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+
+CREATE TABLE `races` (
+  `ID` bigint(20) UNSIGNED NOT NULL,
+  `TextChannelId` bigint(20) UNSIGNED DEFAULT NULL,
+  `VoiceChannelId` bigint(20) UNSIGNED DEFAULT NULL,
+  `RoleId` bigint(20) UNSIGNED DEFAULT NULL,
+  `Owner` bigint(20) UNSIGNED DEFAULT NULL,
+  `Description` tinytext COLLATE utf8_bin,
+  `Status` enum('Entry Open','Countdown','In Progress','Recently Completed','Complete','Aborted') COLLATE utf8_bin DEFAULT NULL,
+  `StartTime` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+
+ALTER TABLE `entries`
+  ADD PRIMARY KEY (`ID`);
+
+
+ALTER TABLE `races`
+  ADD PRIMARY KEY (`ID`);
+
+
+ALTER TABLE `entries`
+  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
+
+
+ALTER TABLE `races`
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;

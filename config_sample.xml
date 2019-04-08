@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<settings>
+    <!--Replace the UPPERCASE values with the actual values for your setup-->
+	<!--Rename this file to "config.xml" and place in the same directory as RaceBot-->
+	<item name="Token" value="DISCORD_TOKEN" />
+	<item name="GuildId" value="DISCORD_SERVER_ID" />
+	<item name="RacebotChannelId" value="RACEBOT_CHANNEL_ID" />
+	<item name="RacesChannelId" value="RACES_CHANNEL_ID" />
+	<item name="RacesCategoryId" value="RACES_CATEGORY_ID" />
+	<item name="MySqlConnectionString" value="Server=HOSTNAME;Database=DATABASE_NAME;Uid=DATABASE_USER;Pwd=DATABASE_PASSWORD" />
+</settings>
