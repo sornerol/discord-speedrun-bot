@@ -23,13 +23,7 @@ namespace Discord_RaceBot
             
 
             // Here we discover all of the command modules in the entry 
-            // assembly and load them. Starting from Discord.NET 2.0, a
-            // service provider is required to be passed into the
-            // module registration method to inject the 
-            // required dependencies.
-            //
-            // If you do not use Dependency Injection, pass null.
-            // See Dependency Injection guide for more information.
+            // assembly and load them.
             await _commands.AddModulesAsync(assembly: Assembly.GetEntryAssembly(),
                                             services: null);
         }
@@ -44,8 +38,7 @@ namespace Discord_RaceBot
             int argPos = 0;
 
             // Determine if the message is a command based on the prefix and make sure no bots trigger commands
-            if (!(message.HasCharPrefix('.', ref argPos) || message.HasMentionPrefix(_client.CurrentUser, ref argPos))
-                || message.Author.IsBot) return;
+            if (!message.HasCharPrefix('.', ref argPos) || message.Author.IsBot) return;
 
             // Create a WebSocket-based command context based on the message
             var context = new SocketCommandContext(_client, message);
