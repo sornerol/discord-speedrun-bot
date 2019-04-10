@@ -86,7 +86,7 @@ namespace Discord_RaceBot
                 return;
             }
 
-            await RaceManager.SetEntrantStatusAsync(race, Context.User.Id, "Not ready");
+            await RaceManager.SetEntrantStatusAsync(race, Context.User.Id, "Not Ready");
         }
 
         [Command("done")]
@@ -116,8 +116,11 @@ namespace Discord_RaceBot
         {
             //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
             SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
-
+            if (!(messageChannel.CategoryId == Globals.RacesCategoryId))
+            {
+                await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
+                return;
+            }
             ulong RaceId = GetRaceId(Context.Channel.Name);
             DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
 
