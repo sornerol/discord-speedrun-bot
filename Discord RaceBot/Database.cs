@@ -206,7 +206,7 @@ namespace Discord_RaceBot
             try
             {
                 cmd.CommandText = "INSERT INTO entries(RaceId,UserId,Status)VALUES(@RaceId,@UserId,@Status)";
-                cmd.Parameters.AddWithValue("@Status", "Not ready");
+                cmd.Parameters.AddWithValue("@Status", "Not Ready");
                 cmd.ExecuteNonQuery();
             }
             catch (Exception e)
@@ -231,7 +231,7 @@ namespace Discord_RaceBot
             {
                 //Build the command
                 cmd = connection.CreateCommand();
-                cmd.CommandText = "UPDATE entries SET Status = @Status WHERE RaceId = @RaceID AND UserId = @UserId";
+                cmd.CommandText = "UPDATE entries SET Status = @Status WHERE RaceId = @RaceId AND UserId = @UserId";
                 cmd.Parameters.AddWithValue("@Status", Status);
                 cmd.Parameters.AddWithValue("@RaceId", RaceId);
                 cmd.Parameters.AddWithValue("@UserId", UserId);
@@ -240,7 +240,7 @@ namespace Discord_RaceBot
             }
             catch (Exception e)
             {
-                Console.WriteLine("Exception thrown: " + e.Message);
+                Console.WriteLine("Exception thrown: " + e.Message + "\n\n" + e.StackTrace);
                 throw;
             }
 
@@ -273,7 +273,7 @@ namespace Discord_RaceBot
             {
                 //Build the command
                 cmd = connection.CreateCommand();
-                cmd.CommandText = "UPDATE entries SET Status = 'Done',FinishedTime = @FinishedTime,Place = @Place  WHERE RaceId = @RaceID AND UserId = @UserId";
+                cmd.CommandText = "UPDATE entries SET Status = 'Done',FinishedTime = @FinishedTime,Place = @Place  WHERE RaceId = @RaceId AND UserId = @UserId";
                 cmd.Parameters.AddWithValue("@RaceId", RaceId);
                 cmd.Parameters.AddWithValue("@UserId", UserId);
                 cmd.Parameters.AddWithValue("@FinishedTime", raceTime.ToString(@"hh\:mm\:ss"));
@@ -459,7 +459,7 @@ namespace Discord_RaceBot
                 entrantsCount = int.Parse(dataReader["Entrants"] + "");
                 switch (status)
                 {
-                    case "Not ready":
+                    case "Not Ready":
                         entrantsSummary.NotReady = entrantsCount;
                         break;
                     case "Ready":
@@ -509,14 +509,17 @@ namespace Discord_RaceBot
             //we should never read in more than one result, so we don't have to mess with a loop for dataReader.Read()
 
             EntrantItem entrant = null;
-
+            
             if (dataReader.Read())
             {
                 TimeSpan convertedDateTime;
+                int place;
                 if (dataReader["FinishedTime"] == DBNull.Value) convertedDateTime = TimeSpan.Zero;
                 else convertedDateTime = (TimeSpan)dataReader["FinishedTime"];
+                if (dataReader["Place"] == DBNull.Value) place = 0;
+                else place = int.Parse(dataReader["Place"] + "");
 
-                entrant = new EntrantItem((string)dataReader["Status"], convertedDateTime, int.Parse(dataReader["Place"]+""));
+                entrant = new EntrantItem((string)dataReader["Status"], convertedDateTime, place);
             }
 
             dataReader.Close();
