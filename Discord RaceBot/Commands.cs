@@ -21,7 +21,7 @@ namespace Discord_RaceBot
             //RaceBot should only handle this command if it comes from #racebot
             if (!(Context.Channel.Id == Globals.RacebotChannelId)) return;
 
-            string cleanDescription = _CleanDescription(description);                       
+            string cleanDescription = CleanDescription(description);                       
 
             await RaceManager.NewRaceAsync(cleanDescription, Context.User.Id);
         }
@@ -129,6 +129,28 @@ namespace Discord_RaceBot
             else await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
         }
 
+        [Command("time")]
+        [Summary("Displays how much time has elapsed since the race began.")]
+        public async Task TimeAsync()
+        {
+            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
+            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
+            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
+
+            //get the RaceId by removing "race-" from the channel name we're in
+            ulong RaceId = GetRaceId(Context.Channel.Name);
+            DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
+
+            //Verify that the race is still open to entry          
+            if (race.Status != "In Progress")
+            {
+                await ReplyAsync(Context.User.Mention + ", you can only use this command for a race that is in progress.");
+                return;
+            }
+
+            _ = RaceManager.ShowTimeAsync(race);
+        }
+
         [Command("comment")]
         [Summary("Records a comment for the entrant.")]
         public async Task CommentAsync([Remainder][Summary("The comment to leave for this entrant")] string comment)
@@ -229,13 +251,12 @@ namespace Discord_RaceBot
                 return;
             }
             //Clean the description, then set the new description.
-            string cleanedDescription = _CleanDescription(description);
+            string cleanedDescription = CleanDescription(description);
             DatabaseHandler.UpdateRace(race.RaceId, Description: cleanedDescription);
             _ = RaceManager.UpdateChannelTopicAsync(race.RaceId);
             await ReplyAsync("Race description changed successfully.");
         }
 
-        #pragma warning disable 1998
         [Command("purge")]
         [Summary("Clears the messages in a channel")]
         public async Task PurgeAsync()
@@ -260,9 +281,9 @@ namespace Discord_RaceBot
 
             SocketTextChannel currentChannel = (SocketTextChannel)Context.Guild.GetChannel(Context.Channel.Id);
 
-            _ = _PurgeChannelAsync(currentChannel);
+            await PurgeChannelAsync(currentChannel);
+            return;
         }
-        #pragma warning restore 1998
 
         [Command("refresh")]
         [Summary("Refreshes a race channel")]
@@ -301,7 +322,7 @@ namespace Discord_RaceBot
         private ulong GetRaceId(string channelName) => Convert.ToUInt64(channelName.Remove(0, 5));
 
         //This method is used to purge a channel asyncronously (to hopefully prevent blocking issues)
-        private async Task _PurgeChannelAsync(SocketTextChannel channel)
+        private async Task PurgeChannelAsync(SocketTextChannel channel)
         {
             var oldMessages = await channel.GetMessagesAsync().FlattenAsync();
 
@@ -312,7 +333,7 @@ namespace Discord_RaceBot
             }
         }
 
-        private string _CleanDescription(string description)
+        private string CleanDescription(string description)
         {
             string cleanedString = description.Replace("\n", " ");
             if (cleanedString.Length > 50) cleanedString = cleanedString.Substring(0, 47) + "...";

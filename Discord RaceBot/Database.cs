@@ -79,7 +79,7 @@ namespace Discord_RaceBot
         /*
          * ConnectAsync(): Opens the MySQL connection
          */
-        private static MySqlConnection _Connect()
+        private static MySqlConnection Connect()
         {
             //create the connection string
             MySqlConnection Connection = new MySqlConnection(Globals.MySqlConnectionString);
@@ -101,7 +101,7 @@ namespace Discord_RaceBot
          */
         public static ulong NewRace(string description, ulong UserId)
         {
-            MySqlConnection connection = _Connect();
+            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             try
             {
@@ -143,7 +143,7 @@ namespace Discord_RaceBot
             if (StartTime != null) fieldUpdates.Add("StartTime = '" + StartTime + "'");
 
             MySqlCommand cmd;
-            MySqlConnection connection = _Connect();
+            MySqlConnection connection = Connect();
             try
             {
                 //Build the command
@@ -181,7 +181,7 @@ namespace Discord_RaceBot
          */
         public static bool JoinRace(ulong RaceId, ulong UserId)
         {
-            MySqlConnection connection = _Connect();
+            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             int cmdResult;
             //first, search to see if the user is already entered
@@ -224,7 +224,7 @@ namespace Discord_RaceBot
          */
         public static bool UpdateEntry(ulong RaceId, ulong UserId, string Status)
         {
-            MySqlConnection connection = _Connect();
+            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             int result = 0;
             try
@@ -258,7 +258,7 @@ namespace Discord_RaceBot
         
         public static EntrantItem MarkEntrantFinished(ulong RaceId, ulong UserId, DateTime StartTime)
         {
-            MySqlConnection connection = _Connect();
+            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             int result = 0;
 
@@ -300,7 +300,7 @@ namespace Discord_RaceBot
          */
         public static RaceItem GetRaceInformation(ulong RaceId)
         {
-            MySqlConnection connection = _Connect();
+            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             MySqlDataReader dataReader; //for reading the results of the query
             try
@@ -342,7 +342,7 @@ namespace Discord_RaceBot
 
         public static List<RaceItem> GetRaceList(string status)
         {
-            MySqlConnection connection = _Connect();
+            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             MySqlDataReader dataReader; //for reading the results of the query   
             List<RaceItem> raceList = new List<RaceItem>();
@@ -402,7 +402,7 @@ namespace Discord_RaceBot
 
         public static bool DeleteEntrant(ulong RaceId, ulong UserId)
         {
-            MySqlConnection connection = _Connect();
+            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             int cmdResult = 0;
             
@@ -431,7 +431,7 @@ namespace Discord_RaceBot
 
         public static EntrantsSummary GetEntrantsSummary(ulong RaceId)
         {
-            MySqlConnection connection = _Connect();
+            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             MySqlDataReader dataReader; //for reading the results of the query
 
@@ -489,7 +489,7 @@ namespace Discord_RaceBot
 
         public static EntrantItem GetEntrantInformation(ulong RaceId, ulong UserId)
         {
-            MySqlConnection connection = _Connect();
+            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             MySqlDataReader dataReader; //for reading the results of the query
             try

@@ -85,6 +85,12 @@ namespace Discord_RaceBot
             //Create a role for the race.
             var newRaceRole = await guild.CreateRoleAsync("race-" + newRaceId);
 
+            //allow this role to be mentionable
+            await newRaceRole.ModifyAsync(x =>
+            {
+                x.Mentionable = true;
+            });
+
             //Create a new text channel in the server
             var newTextChannel = await guild.CreateTextChannelAsync("race-" + newRaceId,
                 x =>
@@ -190,7 +196,7 @@ namespace Discord_RaceBot
             {
                 var raceRole = raceServer.GetRole(Race.RoleId);
                 await entrant.RemoveRoleAsync(raceRole);                
-                await raceChannel.SendMessageAsync(entrant.Mention + ", you finished in **"+_AddOrdinal(entrantInformation.Place) +"** place with a time of **" + entrantInformation.FinishedTime + "**");
+                await raceChannel.SendMessageAsync(entrant.Mention + ", you finished in **"+AddOrdinal(entrantInformation.Place) +"** place with a time of **" + entrantInformation.FinishedTime + "**");
                 await AttemptRaceFinishAsync(Race);
             }
             else await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't mark you as Done (are you entered?)");
@@ -242,6 +248,18 @@ namespace Discord_RaceBot
                 await AttemptRaceFinishAsync(Race);
             }
         }
+
+        public static async Task ShowTimeAsync(DatabaseHandler.RaceItem Race)
+        {
+            var raceServer = client.GetGuild(Globals.GuildId);
+            var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
+
+            //calculate how much time has passed since the race start time and now
+            TimeSpan elapsedTime = Race.StartTime - DateTime.Now;
+
+            //Reply with elapsed time
+            await raceChannel.SendMessageAsync("Elapsed time: **" + elapsedTime.ToString(@"hh\:mm\:ss") + "**");
+        }
         
         public static async Task AttemptRaceStartAsync(DatabaseHandler.RaceItem Race)
         {
@@ -262,7 +280,7 @@ namespace Discord_RaceBot
                     newTimer.Interval = 7000;
                     newTimer.race = Race;
                     newTimer.AutoReset = false;
-                    newTimer.Elapsed += _CountdownRaceAsync;
+                    newTimer.Elapsed += CountdownRaceAsync;
                     newTimer.Enabled = true;
                     newTimer.Start();
                     _ = UpdateRacesChannelAsync();
@@ -288,7 +306,7 @@ namespace Discord_RaceBot
                 newTimer.Interval = 600000;
                 newTimer.race = Race;
                 newTimer.AutoReset = false;
-                newTimer.Elapsed += _DeleteFinishedRaceAsync;
+                newTimer.Elapsed += DeleteFinishedRaceAsync;
                 newTimer.Enabled = true;
                 newTimer.Start();
                 _ = UpdateRacesChannelAsync();
@@ -317,7 +335,7 @@ namespace Discord_RaceBot
             });
         }
 
-        private static async void _CountdownRaceAsync(Object source, ElapsedEventArgs e)
+        private static async void CountdownRaceAsync(Object source, ElapsedEventArgs e)
         {
             DatabaseHandler.RaceItem race = ((CountdownTimer)source).race;
             var raceChannel = (SocketTextChannel)client.GetChannel(race.TextChannelId);
@@ -336,14 +354,14 @@ namespace Discord_RaceBot
             await UpdateChannelTopicAsync(race.RaceId);
         }
 
-        private static async void _DeleteFinishedRaceAsync(Object source, ElapsedEventArgs e)
+        private static async void DeleteFinishedRaceAsync(Object source, ElapsedEventArgs e)
         {
             DatabaseHandler.RaceItem race = ((CountdownTimer)source).race;
             await DeleteRaceAsync(race, "Complete");
             await UpdateRacesChannelAsync();
         }
 
-        private static string _AddOrdinal(int num)
+        private static string AddOrdinal(int num)
         {
             if (num <= 0) return num.ToString();
 
