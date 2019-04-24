@@ -2,8 +2,9 @@
 
 namespace Discord_RaceBot
 {
+    //CountdownTimer inherits Timer and allows us to pass the race information to our ElapsedEventHandler
     class CountdownTimer : Timer
     {
-        public DatabaseHandler.RaceItem race;
+        public RaceItem race;
     }
 }

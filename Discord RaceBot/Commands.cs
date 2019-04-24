@@ -36,7 +36,11 @@ namespace Discord_RaceBot
 
             //get the RaceId by removing "race-" from the channel name we're in
             ulong RaceId = GetRaceId(Context.Channel.Name);
-            DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
+
+            //get the race information from the database
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
+            database.Dispose();
 
             //Verify that the race is still open to entry          
             if (race.Status != "Entry Open")
@@ -56,9 +60,12 @@ namespace Discord_RaceBot
             SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
             if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
 
-            //This command is only available when the race is open for entry
+            //This command is only available when the race is open for entry, so we need to get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
-            DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
+            database.Dispose();
+
             if (race.Status != "Entry Open")
             {
                 await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
@@ -77,9 +84,12 @@ namespace Discord_RaceBot
             SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
             if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
 
-            //This command is only available when the race is open for entry
+            //This command is only available when the race is open for entry, so we need to get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
-            DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
+            database.Dispose();
+
             if (race.Status != "Entry Open")
             {
                 await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
@@ -97,10 +107,12 @@ namespace Discord_RaceBot
             SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
             if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
 
+            //we need to get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
+            database.Dispose();
 
-            //Make sure the race is in progress
-            DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
             if (race.Status != "In Progress")
             {
                 await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
@@ -121,8 +133,12 @@ namespace Discord_RaceBot
                 await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
                 return;
             }
+
+            //we need to get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
-            DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
+            database.Dispose();
 
             if (race.Status == "Entry Open") _ = RaceManager.RemoveEntrantAsync(race, Context.User.Id);
             else if (race.Status == "In Progress") _ = RaceManager.ForfeitEntrantAsync(race, Context.User.Id);
@@ -137,9 +153,11 @@ namespace Discord_RaceBot
             SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
             if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
 
-            //get the RaceId by removing "race-" from the channel name we're in
+            //we need the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
-            DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
+            database.Dispose();
 
             //Verify that the race is still open to entry          
             if (race.Status != "In Progress")
@@ -168,11 +186,14 @@ namespace Discord_RaceBot
             if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
 
             ulong RaceId = GetRaceId(Context.Channel.Name);
+            //get the race information from the database
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
+            database.Dispose();
 
             //we need to check to see if the user has permission to cancel this race
             var user = Context.Guild.GetUser(Context.User.Id);
             List<SocketRole> userRoles = user.Roles.ToList<SocketRole>();
-            DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
             bool userHasPermission = false;
 
             //if the user is the race owner, they can use this command
@@ -214,11 +235,13 @@ namespace Discord_RaceBot
             if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
 
             ulong RaceId = GetRaceId(Context.Channel.Name);
+            //get the race information from the database
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
 
             //we need to check to see if the user has permission to cancel this race
             var user = Context.Guild.GetUser(Context.User.Id);
             List<SocketRole> userRoles = user.Roles.ToList<SocketRole>();
-            DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
             bool userHasPermission = false;
 
             //if the user is the race owner, they can use this command as long as the race is open
@@ -228,6 +251,7 @@ namespace Discord_RaceBot
                 else
                 {
                     await ReplyAsync(Context.User.Mention + ", you can't change the race description anymore. Contact a moderator if you really need to change the race description");
+                    database.Dispose();
                     return;
                 }
             }
@@ -248,11 +272,13 @@ namespace Discord_RaceBot
             if (!userHasPermission)
             {
                 await ReplyAsync(user.Mention + ", only moderators and the race owner can use this command.");
+                database.Dispose();
                 return;
             }
             //Clean the description, then set the new description.
             string cleanedDescription = CleanDescription(description);
-            DatabaseHandler.UpdateRace(race.RaceId, Description: cleanedDescription);
+            database.UpdateRace(race.RaceId, Description: cleanedDescription);
+            database.Dispose();
             _ = RaceManager.UpdateChannelTopicAsync(race.RaceId);
             await ReplyAsync("Race description changed successfully.");
         }
@@ -312,11 +338,14 @@ namespace Discord_RaceBot
             if (!userHasPermission) return;
 
             ulong RaceId = GetRaceId(Context.Channel.Name);
-            DatabaseHandler.RaceItem Race = DatabaseHandler.GetRaceInformation(RaceId);
+            //get the race information from the database
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
+            database.Dispose();
 
             await RaceManager.UpdateChannelTopicAsync(RaceId);
-            if (Race.Status == "Entry Open") _ = RaceManager.AttemptRaceStartAsync(Race);
-            else if (Race.Status == "In Progress") _ = RaceManager.AttemptRaceFinishAsync(Race);
+            if (race.Status == "Entry Open") _ = RaceManager.AttemptRaceStartAsync(race);
+            else if (race.Status == "In Progress") _ = RaceManager.AttemptRaceFinishAsync(race);
         }
 
         private ulong GetRaceId(string channelName) => Convert.ToUInt64(channelName.Remove(0, 5));

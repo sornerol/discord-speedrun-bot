@@ -5,107 +5,37 @@ using MySql.Data.MySqlClient;
 
 namespace Discord_RaceBot
 {
-    public static class DatabaseHandler
-    {        
-        /*
-         * RaceItem is used to return information about a race from the database
-         */
-
-        public class RaceItem
-        {
-            public ulong RaceId { get; set; }
-            public ulong TextChannelId { get; set; }
-            public ulong VoiceChannelId { get; set; }
-            public ulong RoleId { get; set; }
-            public ulong Owner { get; set; }
-            public string Description { get; set; }
-            public string Status { get; set; }
-            public DateTime StartTime { get; set; }
-
-            public RaceItem(ulong _RaceId, ulong _TextChannelId, ulong _VoiceChannelId, ulong _RoleId, ulong _Owner, string _Description, string _Status, DateTime _StartTime)
-            {
-                RaceId = _RaceId;
-                TextChannelId = _TextChannelId;
-                VoiceChannelId = _VoiceChannelId;
-                RoleId = _RoleId;
-                Owner = _Owner;
-                Description = _Description;
-                Status = _Status;
-                StartTime = _StartTime;
-            }
-        }
+    public class DatabaseHandler:IDisposable
+    {
+        //_connection stores the MySqlConnection
+        private MySqlConnection _connection;
+        private bool _disposed = false;
         
-        public class EntrantsSummary
+        //Connect with the passed connection string when the object is created
+        public DatabaseHandler(string connectionString)
         {
-            public ulong RaceId { get; set; }
-            public int NotReady { get; set; }
-            public int Ready { get; set; }
-            public int Done { get; set; }
-            public int Forfeited { get; set; }
-            public int Disqalified { get; set; }
-            public int TotalEntrants
-            {
-                get
-                {
-                    return NotReady + Ready + Done + Forfeited + Disqalified;
-                }
-            }
-
-            public EntrantsSummary(ulong _RaceId)
-            {
-                RaceId = _RaceId;
-                NotReady = 0;
-                Ready = 0;
-                Done = 0;
-                Forfeited = 0;
-                Disqalified = 0;
-            }
-    }
-
-        public class EntrantItem
-        {
-            public string Status;
-            public TimeSpan FinishedTime;
-            public int Place;
-
-            public EntrantItem(string _Status, TimeSpan _FinishedTime, int _Place)
-            {
-                Status = _Status;
-                FinishedTime = _FinishedTime;
-                Place = _Place;
-            }
-        }
-
-        /*
-         * ConnectAsync(): Opens the MySQL connection
-         */
-        private static MySqlConnection Connect()
-        {
-            //create the connection string
-            MySqlConnection Connection = new MySqlConnection(Globals.MySqlConnectionString);
+            this._connection = new MySqlConnection(connectionString);
             try
             {
                 //connect to the database
-                Connection.Open();
+                this._connection.Open();
             }
             catch (Exception e)
             {
                 Console.WriteLine("Exception thrown: " + e.Message);
                 throw;
             }
-            return Connection;
         }
         
         /* 
          * NewRace() Creates a new races with [description] belonging to [UserId]
          */
-        public static ulong NewRace(string description, ulong UserId)
+        public ulong NewRace(string description, ulong UserId)
         {
-            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             try
             {
-                cmd = connection.CreateCommand();
+                cmd = _connection.CreateCommand();
                 cmd.CommandText = "INSERT INTO races(Owner,Description,Status)VALUES(@owner,@description,@status)";
                 cmd.Parameters.AddWithValue("@owner", UserId);
                 cmd.Parameters.AddWithValue("@description", description);
@@ -116,15 +46,13 @@ namespace Discord_RaceBot
             {
                 throw;
             }
-            connection.Close();
-            connection.Dispose();
             return (ulong)cmd.LastInsertedId;
         }
 
         /*
          *UpdateRace(): Updates the race in the database
          */
-        public static bool UpdateRace(ulong RaceId,
+        public bool UpdateRace(ulong RaceId,
             ulong TextChannelId = 0,
             ulong VoiceChannelId = 0,
             ulong RoleId = 0,
@@ -143,11 +71,11 @@ namespace Discord_RaceBot
             if (StartTime != null) fieldUpdates.Add("StartTime = '" + StartTime + "'");
 
             MySqlCommand cmd;
-            MySqlConnection connection = Connect();
+           
             try
             {
                 //Build the command
-                cmd = connection.CreateCommand();
+                cmd = _connection.CreateCommand();
                 cmd.CommandText = "UPDATE races SET ";
                 //itemCount is used to determine if we need to put a comma in front of a value
                 int itemCount = 0;
@@ -170,8 +98,7 @@ namespace Discord_RaceBot
                 Console.WriteLine("Exception thrown: " + e.Message);
                 throw;
             }
-            connection.Close();
-            connection.Dispose();
+
             return false;
         }
         
@@ -179,15 +106,14 @@ namespace Discord_RaceBot
         /* 
          * JoinRace(): Check to see if [UserId] is entered in [RaceId]. If not, add the user to the race.
          */
-        public static bool JoinRace(ulong RaceId, ulong UserId)
+        public bool JoinRace(ulong RaceId, ulong UserId)
         {
-            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             int cmdResult;
             //first, search to see if the user is already entered
             try
             {
-                cmd = connection.CreateCommand();
+                cmd = _connection.CreateCommand();
                 cmd.CommandText = "SELECT Count(*) FROM entries WHERE RaceId = @RaceId AND UserId = @UserId";
                 cmd.Parameters.AddWithValue("@RaceId", RaceId);
                 cmd.Parameters.AddWithValue("@UserId", UserId);
@@ -214,23 +140,21 @@ namespace Discord_RaceBot
                 Console.WriteLine("Exception thrown: " + e.Message);
                 throw;
             }
-            connection.Close();
-            connection.Dispose();
+
             return false;
         }
 
         /*
          * UpdateEntry(): Updates the status for [UserId] in [RaceId]
          */
-        public static bool UpdateEntry(ulong RaceId, ulong UserId, string Status)
+        public bool UpdateEntry(ulong RaceId, ulong UserId, string Status)
         {
-            MySqlConnection connection = Connect();
             MySqlCommand cmd;
-            int result = 0;
+            int result;
             try
             {
                 //Build the command
-                cmd = connection.CreateCommand();
+                cmd = _connection.CreateCommand();
                 cmd.CommandText = "UPDATE entries SET Status = @Status WHERE RaceId = @RaceId AND UserId = @UserId";
                 cmd.Parameters.AddWithValue("@Status", Status);
                 cmd.Parameters.AddWithValue("@RaceId", RaceId);
@@ -244,9 +168,6 @@ namespace Discord_RaceBot
                 throw;
             }
 
-            connection.Close();
-            connection.Dispose();
-
             //If the UserId/RaceId combo exists in the entries table, result will be 1. If not, it will be 0.
             if (result > 0) return false;
             else return true;   //the update command didn't affect any rows, so we need to let the calling function know
@@ -256,9 +177,8 @@ namespace Discord_RaceBot
          * MarkEntrantFinished(): Sets [UserId's] status to Done and records the finish time for [RaceId].
          */
         
-        public static EntrantItem MarkEntrantFinished(ulong RaceId, ulong UserId, DateTime StartTime)
+        public EntrantItem MarkEntrantFinished(ulong RaceId, ulong UserId, DateTime StartTime)
         {
-            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             int result = 0;
 
@@ -272,7 +192,7 @@ namespace Discord_RaceBot
             try
             {
                 //Build the command
-                cmd = connection.CreateCommand();
+                cmd = _connection.CreateCommand();
                 cmd.CommandText = "UPDATE entries SET Status = 'Done',FinishedTime = @FinishedTime,Place = @Place  WHERE RaceId = @RaceId AND UserId = @UserId";
                 cmd.Parameters.AddWithValue("@RaceId", RaceId);
                 cmd.Parameters.AddWithValue("@UserId", UserId);
@@ -289,23 +209,19 @@ namespace Discord_RaceBot
             //If the UserId/RaceId combo exists in the entries table, get the entrant summary and return it.
             if (result > 0) entrant = GetEntrantInformation(RaceId, UserId);
 
-            connection.Close();
-            connection.Dispose();
-
             return entrant;
         }
 
         /*
          * GetRaceInformation(): Returns the race information for [RaceId]
          */
-        public static RaceItem GetRaceInformation(ulong RaceId)
+        public RaceItem GetRaceInformation(ulong RaceId)
         {
-            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             MySqlDataReader dataReader; //for reading the results of the query
             try
             {
-                cmd = connection.CreateCommand();
+                cmd = _connection.CreateCommand();
                 cmd.CommandText = "SELECT * from races WHERE ID = @RaceId";
                 cmd.Parameters.AddWithValue("@RaceId", RaceId);
                 dataReader = cmd.ExecuteReader();
@@ -334,22 +250,20 @@ namespace Discord_RaceBot
             dataReader.Close();
             dataReader.Dispose();
 
-            connection.Close();
-            connection.Dispose();
             return Race;
 
         }
 
-        public static List<RaceItem> GetRaceList(string status)
+        public List<RaceItem> GetRaceList(string status)
         {
-            MySqlConnection connection = Connect();
+
             MySqlCommand cmd;
             MySqlDataReader dataReader; //for reading the results of the query   
             List<RaceItem> raceList = new List<RaceItem>();
 
             try
             {
-                cmd = connection.CreateCommand();
+                cmd = _connection.CreateCommand();
                 cmd.CommandText = "SELECT * from races";
                 //determine what race statuses to return
                 switch (status)
@@ -394,21 +308,17 @@ namespace Discord_RaceBot
             dataReader.Close();
             dataReader.Dispose();
 
-            connection.Close();
-            connection.Dispose();
-
             return raceList;
         }
 
-        public static bool DeleteEntrant(ulong RaceId, ulong UserId)
+        public bool DeleteEntrant(ulong RaceId, ulong UserId)
         {
-            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             int cmdResult = 0;
             
             try
             {
-                cmd = connection.CreateCommand();
+                cmd = _connection.CreateCommand();
                 cmd.CommandText = "DELETE FROM entries WHERE RaceId = @RaceId AND UserId = @UserId";
                 cmd.Parameters.AddWithValue("@RaceId", RaceId);
                 cmd.Parameters.AddWithValue("@UserId", UserId);
@@ -420,8 +330,7 @@ namespace Discord_RaceBot
                 throw;
             }
 
-            connection.Close();
-            connection.Dispose();
+
 
             //If the query returns a result, the entrant was deleted
             if (cmdResult != 0) return false;
@@ -429,15 +338,14 @@ namespace Discord_RaceBot
             else return true;
         }
 
-        public static EntrantsSummary GetEntrantsSummary(ulong RaceId)
+        public EntrantsSummary GetEntrantsSummary(ulong RaceId)
         {
-            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             MySqlDataReader dataReader; //for reading the results of the query
 
             try
             {
-                cmd = connection.CreateCommand();
+                cmd = _connection.CreateCommand();
                 cmd.CommandText = "SELECT Status,Count(*) AS Entrants FROM entries WHERE RaceId = @RaceId GROUP BY Status";
                 cmd.Parameters.AddWithValue("@RaceId", RaceId);
                 dataReader = cmd.ExecuteReader();
@@ -480,21 +388,17 @@ namespace Discord_RaceBot
             }
             dataReader.Close();
             dataReader.Dispose();
-
-            connection.Close();
-            connection.Dispose();
             
             return entrantsSummary;
         }
 
-        public static EntrantItem GetEntrantInformation(ulong RaceId, ulong UserId)
+        public EntrantItem GetEntrantInformation(ulong RaceId, ulong UserId)
         {
-            MySqlConnection connection = Connect();
             MySqlCommand cmd;
             MySqlDataReader dataReader; //for reading the results of the query
             try
             {
-                cmd = connection.CreateCommand();
+                cmd = _connection.CreateCommand();
                 cmd.CommandText = "SELECT Status,FinishedTime,Place from entries WHERE RaceId = @RaceId AND UserId = @UserId";
                 cmd.Parameters.AddWithValue("@RaceId", RaceId);
                 cmd.Parameters.AddWithValue("@UserId", UserId);
@@ -525,10 +429,107 @@ namespace Discord_RaceBot
             dataReader.Close();
             dataReader.Dispose();
 
-            connection.Close();
-            connection.Dispose();
             return entrant;
 
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            //check to see if Dispose has already been called
+            if(!this._disposed)
+            {
+                //if disposing is true, dispose all managed and unmanaged resources
+                if(disposing)
+                {
+                    //close and dispose of the MySqlConnection
+                    _connection.Close();
+                    _connection.Dispose();
+                }
+                //we would dispose of any unmanaged resources here
+
+                //note that disposing has been done.
+                _disposed = true;
+            }
+        }
+    }
+
+    /*
+     * RaceItem is used to return information about a race from the database
+     */
+    public class RaceItem
+    {
+        public ulong RaceId { get; set; }
+        public ulong TextChannelId { get; set; }
+        public ulong VoiceChannelId { get; set; }
+        public ulong RoleId { get; set; }
+        public ulong Owner { get; set; }
+        public string Description { get; set; }
+        public string Status { get; set; }
+        public DateTime StartTime { get; set; }
+
+        public RaceItem(ulong _RaceId, ulong _TextChannelId, ulong _VoiceChannelId, ulong _RoleId, ulong _Owner, string _Description, string _Status, DateTime _StartTime)
+        {
+            RaceId = _RaceId;
+            TextChannelId = _TextChannelId;
+            VoiceChannelId = _VoiceChannelId;
+            RoleId = _RoleId;
+            Owner = _Owner;
+            Description = _Description;
+            Status = _Status;
+            StartTime = _StartTime;
+        }
+    }
+
+    /*
+     * EntrantsSummary is used to return a summary of entrants' statuses
+     */
+    public class EntrantsSummary
+    {
+        public ulong RaceId { get; set; }
+        public int NotReady { get; set; }
+        public int Ready { get; set; }
+        public int Done { get; set; }
+        public int Forfeited { get; set; }
+        public int Disqalified { get; set; }
+        public int TotalEntrants
+        {
+            get
+            {
+                return NotReady + Ready + Done + Forfeited + Disqalified;
+            }
+        }
+
+        public EntrantsSummary(ulong _RaceId)
+        {
+            RaceId = _RaceId;
+            NotReady = 0;
+            Ready = 0;
+            Done = 0;
+            Forfeited = 0;
+            Disqalified = 0;
+        }
+    }
+
+    /*
+     * EntrantItem returns details on a specific entrant
+     */
+    public class EntrantItem
+    {
+        public string Status;
+        public TimeSpan FinishedTime;
+        public int Place;
+
+        public EntrantItem(string _Status, TimeSpan _FinishedTime, int _Place)
+        {
+            Status = _Status;
+            FinishedTime = _FinishedTime;
+            Place = _Place;
         }
     }
 }
