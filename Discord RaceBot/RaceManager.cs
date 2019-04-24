@@ -15,12 +15,14 @@ namespace Discord_RaceBot
 
         public static async Task UpdateRacesChannelAsync()
         {
-
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
             //get the lists of races
-            List<DatabaseHandler.RaceItem> entryOpenRaces = DatabaseHandler.GetRaceList("Entry Open");
-            List<DatabaseHandler.RaceItem> startingRaces = DatabaseHandler.GetRaceList("Countdown");
-            List<DatabaseHandler.RaceItem> inProgressRaces = DatabaseHandler.GetRaceList("In Progress");
-            List<DatabaseHandler.RaceItem> completedRaces = DatabaseHandler.GetRaceList("Recently Completed");
+            List<RaceItem> entryOpenRaces = database.GetRaceList("Entry Open");
+            List<RaceItem> startingRaces = database.GetRaceList("Countdown");
+            List<RaceItem> inProgressRaces = database.GetRaceList("In Progress");
+            List<RaceItem> completedRaces = database.GetRaceList("Recently Completed");
+
+            database.Dispose();
 
             //get the races channel so we can send messages
             SocketTextChannel racesChannel = (SocketTextChannel)client.GetChannel(Globals.RacesChannelId);
@@ -78,8 +80,10 @@ namespace Discord_RaceBot
         public static async Task NewRaceAsync(string description, ulong owner)
         {
             //Create the database record and get the new Race Id.
-            ulong newRaceId = DatabaseHandler.NewRace(description, owner);
-                        
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            ulong newRaceId = database.NewRace(description, owner);
+            
+            //Get the server from Discord
             var guild = client.GetGuild(Globals.GuildId);
 
             //Create a role for the race.
@@ -107,11 +111,13 @@ namespace Discord_RaceBot
                 });
                         
             //Update the race in the database with the new channels/role
-            DatabaseHandler.UpdateRace(
+            database.UpdateRace(
                 newRaceId,
                 TextChannelId: newTextChannel.Id,
                 VoiceChannelId: newVoiceChannel.Id,
                 RoleId: newRaceRole.Id);
+
+            database.Dispose();
 
             //reply to the command on #racebot
             var racebotChannel = guild.GetTextChannel(Globals.RacebotChannelId);
@@ -120,16 +126,15 @@ namespace Discord_RaceBot
 
         }
 
-        public static async Task DeleteRaceAsync(DatabaseHandler.RaceItem Race, string Status)
+        public static async Task DeleteRaceAsync(RaceItem Race, string Status)
         {
-            //If the status is Aborted, set the race status. 
+            //Don't use this command if the status is anything other than "Aborted" or "Complete"
+            if (Status != "Aborted" && Status != "Complete") return;
 
-            if (Status == "Aborted")
-                DatabaseHandler.UpdateRace(Race.RaceId, Status: "Aborted");
-            else if (Status == "Complete")
-                DatabaseHandler.UpdateRace(Race.RaceId, Status: "Complete");
-            else if (Status != null)
-                return;
+            //Update the database with the appropriate status
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            database.UpdateRace(Race.RaceId, Status: Status);
+            database.Dispose();
 
             //Get the channels and role from Discord
             var guild = client.GetGuild(Globals.GuildId);
@@ -143,55 +148,63 @@ namespace Discord_RaceBot
             await raceRole.DeleteAsync();
         }
 
-        public static async Task AddEntrantAsync(DatabaseHandler.RaceItem Race, ulong UserId)
+        public static async Task AddEntrantAsync(RaceItem Race, ulong UserId)
         {
+            //get the required information from Discord
             var raceServer = client.GetGuild(Globals.GuildId);
             var entrant = raceServer.GetUser(UserId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
 
-            //attempt to join the race
-            bool result = DatabaseHandler.JoinRace(Race.RaceId, UserId);
-            //if the command returns true, then the user is probably already joined
-            if (result == true) await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't enter you (did you already enter?)");
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+
+            //attempt to join the race. if the command returns true, then the user is probably already joined
+            if (database.JoinRace(Race.RaceId, UserId)) await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't enter you (did you already enter?)");
 
             else
             {
+                //get the race role from Discord
                 var raceRole = raceServer.GetRole(Race.RoleId);
 
                 //assign the correct race role to the user
                 await entrant.AddRoleAsync(raceRole);
                 await raceChannel.SendMessageAsync(entrant.Mention + ", you are entered in the race. Type '.ready' when you are ready to start.");
+                
+                //Update the race channel topic to reflect the correct number of people joined.
+                _ = UpdateChannelTopicAsync(Race.RaceId);
             }
-            _ = UpdateChannelTopicAsync(Race.RaceId);
+            database.Dispose();
         }
 
-        public static async Task SetEntrantStatusAsync(DatabaseHandler.RaceItem Race, ulong UserId, string Status)
+        public static async Task SetEntrantStatusAsync(RaceItem Race, ulong UserId, string Status)
         {
             var raceServer = client.GetGuild(Globals.GuildId);
             var entrant = raceServer.GetUser(UserId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
-                       
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+
             //Attempt to update the database. If the update function returns true, then the user isn't entered in the race
-            if (!DatabaseHandler.UpdateEntry(Race.RaceId, UserId, Status))
+            if (database.UpdateEntry(Race.RaceId, UserId, Status)) await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't change your status (are you entered?)");
+            else
             {
                 await raceChannel.SendMessageAsync(entrant.Username + " is **" + Status + "**");
                 await AttemptRaceStartAsync(Race);
             }
-            else await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't change your status (are you entered?)");
-
-            
+            database.Dispose();            
         }
 
-        public static async Task MarkEntrantDoneAsync(DatabaseHandler.RaceItem Race, ulong UserId)
+        public static async Task MarkEntrantDoneAsync(RaceItem Race, ulong UserId)
         {
-
+            //Get the required information from Discord
             var raceServer = client.GetGuild(Globals.GuildId);
             var entrant = raceServer.GetUser(UserId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
 
             //Attempt to update the database. If the update function returns null, then the user isn't entered in the race
-            DatabaseHandler.EntrantItem entrantInformation = DatabaseHandler.MarkEntrantFinished(Race.RaceId, UserId, Race.StartTime);
-                        
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            EntrantItem entrantInformation = database.MarkEntrantFinished(Race.RaceId, UserId, Race.StartTime);
+            database.Dispose();
+            
+            //if we get a result back from MarkEntrantFinished, let the racer know their place and finish time
             if (entrantInformation != null)
             {
                 var raceRole = raceServer.GetRole(Race.RoleId);
@@ -199,38 +212,50 @@ namespace Discord_RaceBot
                 await raceChannel.SendMessageAsync(entrant.Mention + ", you finished in **"+AddOrdinal(entrantInformation.Place) +"** place with a time of **" + entrantInformation.FinishedTime + "**");
                 await AttemptRaceFinishAsync(Race);
             }
+            //the racer probably isn't entered in the race if we don't get a result back
             else await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't mark you as Done (are you entered?)");
 
         }
 
-        public static async Task RemoveEntrantAsync(DatabaseHandler.RaceItem Race, ulong UserId)
+        public static async Task RemoveEntrantAsync(RaceItem Race, ulong UserId)
         {
+            //get required info from Discord
             var guild = client.GetGuild(Globals.GuildId);
             var raceChannel = guild.GetTextChannel(Race.TextChannelId);
             var raceRole = guild.GetRole(Race.RoleId);
             var entrant = guild.GetUser(UserId);
 
-            if (!DatabaseHandler.DeleteEntrant(Race.RaceId, UserId))
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+
+            //attempt to delete the entrant from the race. If DeleteEntrant returns true, they aren't entered in the race
+            if (database.DeleteEntrant(Race.RaceId, UserId)) await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't remove you from the race (are you entered?)");
+            else
             {
                 await entrant.RemoveRoleAsync(raceRole);
                 await raceChannel.SendMessageAsync(entrant.Mention + ", you have been removed from the race.");
                 await AttemptRaceStartAsync(Race);
             }
-            else await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't remove you from the race (are you entered?)");
+            database.Dispose(); 
         }
 
-        public static async Task ForfeitEntrantAsync(DatabaseHandler.RaceItem Race, ulong UserId)
+        public static async Task ForfeitEntrantAsync(RaceItem Race, ulong UserId)
         {
+            //get required info from Discord
             var guild = client.GetGuild(Globals.GuildId);
             var raceChannel = guild.GetTextChannel(Race.TextChannelId);
             var raceRole = guild.GetRole(Race.RoleId);
             var entrant = guild.GetUser(UserId);
 
-            DatabaseHandler.EntrantItem entrantStatus = DatabaseHandler.GetEntrantInformation(Race.RaceId, UserId);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+
+            //Get the get the entrant's status.
+            EntrantItem entrantStatus = database.GetEntrantInformation(Race.RaceId, UserId);
+
             //if no result was returned, the user isn't entered
             if(entrantStatus == null)
             {
                 await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't forfeit you from the race (are you entered?)");
+                database.Dispose();
                 return;
             }
 
@@ -238,18 +263,24 @@ namespace Discord_RaceBot
             if(entrantStatus.Status != "Ready")
             {
                 await raceChannel.SendMessageAsync(entrant.Mention + ", you can't use that command right now.");
+                database.Dispose();
                 return;
             }
+
             //attempt to forfeit the racer
-            if(!DatabaseHandler.UpdateEntry(Race.RaceId, UserId, "Forfeited"))
+            if(!database.UpdateEntry(Race.RaceId, UserId, "Forfeited"))
             {
                 await entrant.RemoveRoleAsync(raceRole);
                 await raceChannel.SendMessageAsync(entrant.Mention + ", you have forfeited from the race.");
                 await AttemptRaceFinishAsync(Race);
             }
+            //UpdateEntry shouldn't return true since we've already checked to see if the racer is entered, but if it does, we need to let the racer know.
+            else await raceChannel.SendMessageAsync(entrant.Mention + ", something went wrong when I tried to remove you. Please let a moderator know.");
+
+            database.Dispose();
         }
 
-        public static async Task ShowTimeAsync(DatabaseHandler.RaceItem Race)
+        public static async Task ShowTimeAsync(RaceItem Race)
         {
             var raceServer = client.GetGuild(Globals.GuildId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
@@ -261,9 +292,11 @@ namespace Discord_RaceBot
             await raceChannel.SendMessageAsync("Elapsed time: **" + elapsedTime.ToString(@"hh\:mm\:ss") + "**");
         }
         
-        public static async Task AttemptRaceStartAsync(DatabaseHandler.RaceItem Race)
+        public static async Task AttemptRaceStartAsync(RaceItem Race)
         {
-            DatabaseHandler.EntrantsSummary entrantsSummary = DatabaseHandler.GetEntrantsSummary(Race.RaceId);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+
+            EntrantsSummary entrantsSummary = database.GetEntrantsSummary(Race.RaceId);
 
             var raceServer = client.GetGuild(Globals.GuildId);
             var raceRole = raceServer.GetRole(Race.RoleId);
@@ -275,7 +308,7 @@ namespace Discord_RaceBot
                 {
                     //All of the entrants are ready, and we have enough entrants, so we can start the race
                     await raceChannel.SendMessageAsync(raceRole.Mention + " Everyone is ready! Race will start in 10 seconds.");
-                    DatabaseHandler.UpdateRace(Race.RaceId, Status: "Countdown");
+                    database.UpdateRace(Race.RaceId, Status: "Countdown");
                     var newTimer = new CountdownTimer();
                     newTimer.Interval = 7000;
                     newTimer.race = Race;
@@ -287,11 +320,14 @@ namespace Discord_RaceBot
                 }
             }
             _ = UpdateChannelTopicAsync(Race.RaceId);
+            database.Dispose();
         }
 
-        public static async Task AttemptRaceFinishAsync(DatabaseHandler.RaceItem Race)
+        public static async Task AttemptRaceFinishAsync(RaceItem Race)
         {
-            DatabaseHandler.EntrantsSummary entrantsSummary = DatabaseHandler.GetEntrantsSummary(Race.RaceId);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+
+            EntrantsSummary entrantsSummary = database.GetEntrantsSummary(Race.RaceId);
 
             var raceServer = client.GetGuild(Globals.GuildId);
             var raceRole = raceServer.GetRole(Race.RoleId);
@@ -301,7 +337,7 @@ namespace Discord_RaceBot
             if (entrantsSummary.Ready == 0)
             {
                 await raceChannel.SendMessageAsync("Everyone is finished! GGs all around! This channel will be deleted in 10 minutes.");
-                DatabaseHandler.UpdateRace(Race.RaceId, Status: "Recently Completed");
+                database.UpdateRace(Race.RaceId, Status: "Recently Completed");
                 var newTimer = new CountdownTimer();
                 newTimer.Interval = 600000;
                 newTimer.race = Race;
@@ -312,13 +348,19 @@ namespace Discord_RaceBot
                 _ = UpdateRacesChannelAsync();
 
             }
+
             _ = UpdateChannelTopicAsync(Race.RaceId);
+            database.Dispose();
+
         }
 
         public static async Task UpdateChannelTopicAsync(ulong RaceId)
         {
-            DatabaseHandler.RaceItem race = DatabaseHandler.GetRaceInformation(RaceId);
-            DatabaseHandler.EntrantsSummary entrantsSummary = DatabaseHandler.GetEntrantsSummary(race.RaceId);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+
+            RaceItem race = database.GetRaceInformation(RaceId);
+            EntrantsSummary entrantsSummary = database.GetEntrantsSummary(race.RaceId);
+            database.Dispose();
 
             SocketTextChannel raceChannel = (SocketTextChannel)client.GetChannel(race.TextChannelId);
             string newTopic = "**" + race.Status + "** | " + race.Description;
@@ -337,7 +379,7 @@ namespace Discord_RaceBot
 
         private static async void CountdownRaceAsync(Object source, ElapsedEventArgs e)
         {
-            DatabaseHandler.RaceItem race = ((CountdownTimer)source).race;
+            RaceItem race = ((CountdownTimer)source).race;
             var raceChannel = (SocketTextChannel)client.GetChannel(race.TextChannelId);
                         
             await raceChannel.SendMessageAsync("**3**");
@@ -349,14 +391,16 @@ namespace Discord_RaceBot
             await raceChannel.SendMessageAsync("**GO!**");
 
             string startTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            DatabaseHandler.UpdateRace(race.RaceId, Status: "In Progress", StartTime: startTime);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            database.UpdateRace(race.RaceId, Status: "In Progress", StartTime: startTime);
+            database.Dispose();
             await UpdateRacesChannelAsync();
             await UpdateChannelTopicAsync(race.RaceId);
         }
 
         private static async void DeleteFinishedRaceAsync(Object source, ElapsedEventArgs e)
         {
-            DatabaseHandler.RaceItem race = ((CountdownTimer)source).race;
+            RaceItem race = ((CountdownTimer)source).race;
             await DeleteRaceAsync(race, "Complete");
             await UpdateRacesChannelAsync();
         }
