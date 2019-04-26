@@ -196,27 +196,34 @@ namespace Discord_RaceBot
             List<SocketRole> userRoles = user.Roles.ToList<SocketRole>();
             bool userHasPermission = false;
 
-            //if the user is the race owner, they can use this command
-            if (race.Owner == Context.User.Id) userHasPermission = true;
-            else
+            //check to see if the user is a moderator first.
+            foreach (SocketRole item in userRoles)
             {
-                //If the user is a moderator, they may use this command as well
-                foreach (SocketRole item in userRoles)
+                if (item.Name.ToLower() == "moderator")
                 {
-                    if (item.Name.ToLower() == "moderator")
-                    {
-                        userHasPermission = true;
-                        break;
-                    }
+                    userHasPermission = true;
+                    break;
                 }
             }
 
+            //if the user is not a moderator and they are the owner of the race, they can still cancel it if it's open for entry.
+            if (!userHasPermission && race.Owner == Context.User.Id)
+            {
+                if (race.Status == "Entry Open") userHasPermission = true;
+                else
+                {
+                    await ReplyAsync(Context.User.Mention + ", you may not cancel a race that's in progress. If you really need to cancel the race, ask a moderator in the help channel.");
+                    return;
+                }
+            }
+            
             //If the user isn't allowed to use this command, let them know and return
             if (!userHasPermission)
             {
                 await ReplyAsync(user.Mention + ", only moderators and the race owner can use this command.");
                 return;
             }
+
             //users can only cancel "Entry Open" or "In Progress" races
             if (race.Status == "Entry Open" || race.Status == "In Progress")
             {
@@ -244,30 +251,28 @@ namespace Discord_RaceBot
             List<SocketRole> userRoles = user.Roles.ToList<SocketRole>();
             bool userHasPermission = false;
 
-            //if the user is the race owner, they can use this command as long as the race is open
-            if (race.Owner == Context.User.Id)
+            //check to see if the user is a moderator first.
+            foreach (SocketRole item in userRoles)
             {
-                if(race.Status == "Entry Open") userHasPermission = true;
+                if (item.Name.ToLower() == "moderator")
+                {
+                    userHasPermission = true;
+                    break;
+                }
+            }
+
+            //if the user is not a moderator and they are the owner of the race, they can still set the description it if it's open for entry.
+            if (!userHasPermission && race.Owner == Context.User.Id)
+            {
+                if (race.Status == "Entry Open") userHasPermission = true;
                 else
                 {
-                    await ReplyAsync(Context.User.Mention + ", you can't change the race description anymore. Contact a moderator if you really need to change the race description");
+                    await ReplyAsync(Context.User.Mention + ", you can't change the race description anymore. If you really need to change the race description, ask a moderator in the help channel.");
                     database.Dispose();
                     return;
                 }
             }
-            else
-            {
-                //If the user is a moderator, they may use this command as well
-                foreach (SocketRole item in userRoles)
-                {
-                    if (item.Name.ToLower() == "moderator")
-                    {
-                        userHasPermission = true;
-                        break;
-                    }
-                }
-            }
-
+           
             //If the user isn't allowed to use this command, let them know and return
             if (!userHasPermission)
             {
@@ -275,6 +280,7 @@ namespace Discord_RaceBot
                 database.Dispose();
                 return;
             }
+
             //Clean the description, then set the new description.
             string cleanedDescription = CleanDescription(description);
             database.UpdateRace(race.RaceId, Description: cleanedDescription);
