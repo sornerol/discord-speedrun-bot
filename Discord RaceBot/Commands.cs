@@ -66,7 +66,7 @@ namespace Discord_RaceBot
             RaceItem race = database.GetRaceInformation(RaceId);
             database.Dispose();
 
-            if (race.Status != "Entry Open")
+            if (race.Status != "Entry Open" && race.Status != "Countdown")
             {
                 await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
                 return;
@@ -140,7 +140,7 @@ namespace Discord_RaceBot
             RaceItem race = database.GetRaceInformation(RaceId);
             database.Dispose();
 
-            if (race.Status == "Entry Open") _ = RaceManager.RemoveEntrantAsync(race, Context.User.Id);
+            if (race.Status == "Entry Open" || race.Status == "Countdown") _ = RaceManager.RemoveEntrantAsync(race, Context.User.Id);
             else if (race.Status == "In Progress") _ = RaceManager.ForfeitEntrantAsync(race, Context.User.Id);
             else await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
         }
@@ -287,6 +287,46 @@ namespace Discord_RaceBot
             database.Dispose();
             _ = RaceManager.UpdateChannelTopicAsync(race.RaceId);
             await ReplyAsync("Race description changed successfully.");
+        }
+
+        [Command("forcestart")]
+        [Summary("Force a race to start")]
+        public async Task ForceStartAsync()
+        {
+            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
+            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
+            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
+
+            //This is a moderator-only command
+            var user = Context.Guild.GetUser(Context.User.Id);
+            List<SocketRole> userRoles = user.Roles.ToList<SocketRole>();
+            bool userHasPermission = false;
+
+            //check to see if the user is a moderator first.
+            foreach (SocketRole item in userRoles)
+            {
+                if (item.Name.ToLower() == "moderator")
+                {
+                    userHasPermission = true;
+                    break;
+                }
+            }
+
+            //If the user isn't allowed to use this command, let them know and return
+            if (!userHasPermission)
+            {
+                await ReplyAsync(user.Mention + ", only moderators are allowed to force start races. Ask a moderator in the help channel if you need to force start this race."); 
+                return;
+            }
+
+            //get the race information from the database
+            ulong RaceId = GetRaceId(Context.Channel.Name);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
+            database.Dispose();
+
+            //Start the process of force starting the race
+            _ = RaceManager.BeginForceStartAsync(race);
         }
 
         [Command("purge")]

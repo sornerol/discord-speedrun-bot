@@ -13,6 +13,9 @@ namespace Discord_RaceBot
         //Save the Discord client object so we can access Discord from this class
         public static DiscordSocketClient client { get; set; }
 
+        //Keep track of races that are force starting. We may need to kill off one of the timers if the race starts before it elapses
+        private static List<CountdownTimer> _forceStartTimerList = new List<CountdownTimer>();
+
         public static async Task UpdateRacesChannelAsync()
         {
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
@@ -146,6 +149,9 @@ namespace Discord_RaceBot
             await textChannel.DeleteAsync();
             await voiceChannel.DeleteAsync();
             await raceRole.DeleteAsync();
+
+            //check for and remove any force start timers that may be waiting to fire
+            RemoveForceStartTimer(Race.RaceId);
         }
 
         public static async Task AddEntrantAsync(RaceItem Race, ulong UserId)
@@ -292,7 +298,7 @@ namespace Discord_RaceBot
             await raceChannel.SendMessageAsync("Elapsed time: **" + elapsedTime.ToString(@"hh\:mm\:ss") + "**");
         }
         
-        public static async Task AttemptRaceStartAsync(RaceItem Race)
+        public static async Task<bool> AttemptRaceStartAsync(RaceItem Race)
         {
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
 
@@ -302,9 +308,17 @@ namespace Discord_RaceBot
             var raceRole = raceServer.GetRole(Race.RoleId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
 
-            if (entrantsSummary.Ready == entrantsSummary.TotalEntrants)
+            //sometimes we need to know if we're actually starting the race.
+            bool raceIsStarting = false;
+
+            //See if the number of ready entrants + disqualified entrants equals the total number of entrants
+            //It is possible (but rare) for an entrant to be marked disqualified before a race starts
+            //Excessive DQs may result in a penalty at some point, so it's important to record them
+            if (entrantsSummary.Ready + entrantsSummary.Disqalified == entrantsSummary.TotalEntrants)
             {
-                if (entrantsSummary.TotalEntrants > 1)
+                //we don't want a situation where there is only one racer who is ready, but the race starts
+                //because of DQed entrants.
+                if (entrantsSummary.Ready > 1)
                 {
                     //All of the entrants are ready, and we have enough entrants, so we can start the race
                     await raceChannel.SendMessageAsync(raceRole.Mention + " Everyone is ready! Race will start in 10 seconds.");
@@ -316,14 +330,20 @@ namespace Discord_RaceBot
                     newTimer.Elapsed += CountdownRaceAsync;
                     newTimer.Enabled = true;
                     newTimer.Start();
+
+                    //check for and remove any force start timers that may be waiting to fire
+                    RemoveForceStartTimer(Race.RaceId);
                     _ = UpdateRacesChannelAsync();
+                    raceIsStarting = true;
                 }
             }
+
             _ = UpdateChannelTopicAsync(Race.RaceId);
             database.Dispose();
+            return raceIsStarting;
         }
 
-        public static async Task AttemptRaceFinishAsync(RaceItem Race)
+        public static async Task<bool> AttemptRaceFinishAsync(RaceItem Race)
         {
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
 
@@ -332,6 +352,9 @@ namespace Discord_RaceBot
             var raceServer = client.GetGuild(Globals.GuildId);
             var raceRole = raceServer.GetRole(Race.RoleId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
+
+            //we sometimes may need to know if the race is actually finishing
+            bool raceIsFinishing = false;
 
             //Racers are stored as "Ready" until they finish, forfeit, or are disqualified
             if (entrantsSummary.Ready == 0)
@@ -345,13 +368,40 @@ namespace Discord_RaceBot
                 newTimer.Elapsed += DeleteFinishedRaceAsync;
                 newTimer.Enabled = true;
                 newTimer.Start();
+                raceIsFinishing = true;
                 _ = UpdateRacesChannelAsync();
 
             }
 
             _ = UpdateChannelTopicAsync(Race.RaceId);
             database.Dispose();
+            return raceIsFinishing;
+        }
 
+        public static async Task BeginForceStartAsync(RaceItem Race)
+        {
+            var raceServer = client.GetGuild(Globals.GuildId);
+            var raceRole = raceServer.GetRole(Race.RoleId);
+            var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
+
+            //Set the race status to "Countdown" so no new entrants can join
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            database.UpdateRace(Race.RaceId, Status: "Countdown");
+            database.Dispose();
+
+            //We're going to set a timer to give the remaining entrants time to ready up
+            await raceChannel.SendMessageAsync(raceRole.Mention + ", a moderator is force starting this race. Entrants who are not ready within 30 seconds will be kicked from the race.");
+            var newTimer = new CountdownTimer();
+            newTimer.Interval = 30000;
+            newTimer.race = Race;
+            newTimer.AutoReset = false;
+            newTimer.Elapsed += ForceStartRaceAsync;
+            newTimer.Enabled = true;
+            newTimer.Start();
+            _forceStartTimerList.Add(newTimer);
+
+            _ = UpdateChannelTopicAsync(Race.RaceId);
+            _ = UpdateRacesChannelAsync();
         }
 
         public static async Task UpdateChannelTopicAsync(ulong RaceId)
@@ -405,6 +455,49 @@ namespace Discord_RaceBot
             await UpdateRacesChannelAsync();
         }
 
+        private static async void ForceStartRaceAsync(Object source, ElapsedEventArgs e)
+        {
+            RaceItem race = ((CountdownTimer)source).race;
+            var raceChannel = (SocketTextChannel)client.GetChannel(race.TextChannelId);
+            var guild = client.GetGuild(Globals.GuildId);
+            var raceRole = guild.GetRole(race.RoleId);
+
+            //get the list of players who are not ready
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            List<EntrantItem> playersToRemove = database.GetEntrantList(race.RaceId, "Not Ready");
+
+            int kickedPlayers = 0;
+
+            foreach(EntrantItem entrant in playersToRemove)
+            {
+                var discordEntrant = guild.GetUser(entrant.UserId);
+                if (!database.DeleteEntrant(race.RaceId, entrant.UserId))
+                {
+                    kickedPlayers++;
+                    await discordEntrant.RemoveRoleAsync(raceRole);
+                    await discordEntrant.SendMessageAsync("You were kicked from **Race " + race.RaceId + ": " + race.Description + "** because you did not make yourself ready in a timely manner.");
+                }
+            }
+
+            //Attempt to force start the race. If the race doesn't start, let everyone know and set
+            //the race status back to "Entry Open"
+            bool raceIsStarting = await AttemptRaceStartAsync(race);
+                        
+            if (!raceIsStarting)
+            {
+                await raceChannel.SendMessageAsync("I could not force start this race because there aren't enough participants who are ready.");
+                database.UpdateRace(race.RaceId, Status: "Entry Open");
+                await UpdateChannelTopicAsync(race.RaceId);
+
+            }
+
+            database.Dispose();
+
+            //remove the timer from our list of force start timers
+            _forceStartTimerList.Remove((CountdownTimer)source);
+
+        }
+
         private static string AddOrdinal(int num)
         {
             if (num <= 0) return num.ToString();
@@ -427,6 +520,22 @@ namespace Discord_RaceBot
                     return num + "rd";
                 default:
                     return num + "th";
+            }
+        }
+
+        private static void RemoveForceStartTimer(ulong RaceId)
+        {
+            //When we do something that would interfere with a race that is about to force start, we need to remove the
+            //force start timer to prevent it from firing.
+            foreach (CountdownTimer timer in _forceStartTimerList)
+            {
+                if (timer.race.RaceId == RaceId)
+                {
+                    timer.Stop();
+                    timer.Dispose();
+                    _forceStartTimerList.Remove(timer);
+                    break;
+                }
             }
         }
     }
