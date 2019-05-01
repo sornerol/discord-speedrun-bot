@@ -311,10 +311,68 @@ namespace Discord_RaceBot
             return raceList;
         }
 
+        public List<EntrantItem> GetEntrantList(ulong raceId, string status)
+        {
+
+            MySqlCommand cmd;
+            MySqlDataReader dataReader; //for reading the results of the query   
+            List<EntrantItem> entrantList = new List<EntrantItem>();
+
+            try
+            {
+                cmd = _connection.CreateCommand();
+                cmd.CommandText = "SELECT * from entries WHERE RaceId = @RaceId";
+                cmd.Parameters.AddWithValue("@RaceId", raceId);
+                //determine which entrant statuses to return
+
+                if (status != "all")
+                {
+                    cmd.CommandText += " AND Status = @Status";
+                    cmd.Parameters.AddWithValue("@Status", status);
+                }
+
+                dataReader = cmd.ExecuteReader();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Exception thrown: " + e.Message);
+                throw;
+            }
+
+            TimeSpan convertedDateTime;
+            int place;
+            string comment;
+
+            while (dataReader.Read())
+            {                
+                if (dataReader["FinishedTime"] == DBNull.Value) convertedDateTime = TimeSpan.Zero;
+                else convertedDateTime = (TimeSpan)dataReader["FinishedTime"];
+
+                if (dataReader["Place"] == DBNull.Value) place = -1;
+                else place = int.Parse(dataReader["Place"] + "");
+
+                if (dataReader["Comment"] == DBNull.Value) comment = null;
+                else comment = (string)dataReader["Comment"];
+
+                entrantList.Add(new EntrantItem(
+                    (ulong)dataReader["ID"],
+                    (ulong)dataReader["RaceId"],
+                    (ulong)dataReader["UserId"],
+                    (string)dataReader["Status"],
+                    convertedDateTime,
+                    place,
+                    comment));
+            }
+            dataReader.Close();
+            dataReader.Dispose();
+
+            return entrantList;
+        }
+
         public bool DeleteEntrant(ulong RaceId, ulong UserId)
         {
             MySqlCommand cmd;
-            int cmdResult = 0;
+            int cmdResult;
             
             try
             {
@@ -399,7 +457,7 @@ namespace Discord_RaceBot
             try
             {
                 cmd = _connection.CreateCommand();
-                cmd.CommandText = "SELECT Status,FinishedTime,Place from entries WHERE RaceId = @RaceId AND UserId = @UserId";
+                cmd.CommandText = "SELECT * from entries WHERE RaceId = @RaceId AND UserId = @UserId";
                 cmd.Parameters.AddWithValue("@RaceId", RaceId);
                 cmd.Parameters.AddWithValue("@UserId", UserId);
                 dataReader = cmd.ExecuteReader();
@@ -418,12 +476,25 @@ namespace Discord_RaceBot
             {
                 TimeSpan convertedDateTime;
                 int place;
+                string comment;
+
                 if (dataReader["FinishedTime"] == DBNull.Value) convertedDateTime = TimeSpan.Zero;
                 else convertedDateTime = (TimeSpan)dataReader["FinishedTime"];
-                if (dataReader["Place"] == DBNull.Value) place = 0;
+
+                if (dataReader["Place"] == DBNull.Value) place = -1;
                 else place = int.Parse(dataReader["Place"] + "");
 
-                entrant = new EntrantItem((string)dataReader["Status"], convertedDateTime, place);
+                if (dataReader["Comment"] == DBNull.Value) comment = null;
+                else comment = (string)dataReader["Comment"];
+
+                entrant = new EntrantItem(
+                    (ulong)dataReader["ID"],
+                    (ulong)dataReader["RaceId"],
+                    (ulong)dataReader["UserId"],
+                    (string)dataReader["Status"],
+                    convertedDateTime,
+                    place,
+                    comment);
             }
 
             dataReader.Close();
@@ -521,15 +592,23 @@ namespace Discord_RaceBot
      */
     public class EntrantItem
     {
+        public ulong Id;
+        public ulong RaceId;
+        public ulong UserId;
         public string Status;
         public TimeSpan FinishedTime;
         public int Place;
+        public string Comment;
 
-        public EntrantItem(string _Status, TimeSpan _FinishedTime, int _Place)
+        public EntrantItem(ulong Id, ulong RaceId, ulong UserId, string Status, TimeSpan FinishedTime, int Place, string Comment)
         {
-            Status = _Status;
-            FinishedTime = _FinishedTime;
-            Place = _Place;
+            this.Id = Id;
+            this.RaceId = RaceId;
+            this.UserId = UserId;
+            this.Status = Status;
+            this.FinishedTime = FinishedTime;
+            this.Place = Place;
+            this.Comment = Comment;
         }
     }
 }
