@@ -381,10 +381,19 @@ namespace Discord_RaceBot
         private async Task PurgeChannelAsync(SocketTextChannel channel)
         {
             var oldMessages = await channel.GetMessagesAsync().FlattenAsync();
+            
+            //DeleteMessagesAsync doesn't work if any of the messages are older than two weeks
+            TimeSpan twoWeeks = new TimeSpan(13, 23, 59, 59);
+
+            //We'll filter out the messages that are too old to purge
+            var messagesToDelete =
+                from msg in oldMessages
+                where (DateTime.Now - msg.Timestamp) < twoWeeks
+                select msg;
 
             while (oldMessages.Count() != 0)
-            {
-                await channel.DeleteMessagesAsync(oldMessages);
+            {                
+                await channel.DeleteMessagesAsync(messagesToDelete);
                 oldMessages = await channel.GetMessagesAsync().FlattenAsync();
             }
         }
