@@ -13,8 +13,10 @@ namespace Discord_RaceBot
         //Save the Discord client object so we can access Discord from this class
         public static DiscordSocketClient client { get; set; }
 
-        //Keep track of races that are force starting. We may need to kill off one of the timers if the race starts before it elapses
+        //We may need to stop some timers from firing. We'll store these timers in a list
         private static List<CountdownTimer> _forceStartTimerList = new List<CountdownTimer>();
+        private static List<CountdownTimer> _completedRaceTimerList = new List<CountdownTimer>();
+
 
         public static async Task UpdateRacesChannelAsync()
         {
@@ -151,7 +153,7 @@ namespace Discord_RaceBot
             await raceRole.DeleteAsync();
 
             //check for and remove any force start timers that may be waiting to fire
-            RemoveForceStartTimer(Race.RaceId);
+            RemoveTimer(_forceStartTimerList, Race.RaceId);
         }
 
         public static async Task AddEntrantAsync(RaceItem Race, ulong UserId)
@@ -164,9 +166,7 @@ namespace Discord_RaceBot
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
 
             //attempt to join the race. if the command returns true, then the user is probably already joined
-            if (database.JoinRace(Race.RaceId, UserId)) await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't enter you (did you already enter?)");
-
-            else
+            if (!database.JoinRace(Race.RaceId, UserId))
             {
                 //get the race role from Discord
                 var raceRole = raceServer.GetRole(Race.RoleId);
@@ -189,8 +189,7 @@ namespace Discord_RaceBot
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
 
             //Attempt to update the database. If the update function returns true, then the user isn't entered in the race
-            if (database.UpdateEntry(Race.RaceId, UserId, Status)) await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't change your status (are you entered?)");
-            else
+            if (!database.UpdateEntry(Race.RaceId, UserId, Status))
             {
                 await raceChannel.SendMessageAsync(entrant.Username + " is **" + Status + "**");
                 await AttemptRaceStartAsync(Race);
@@ -209,18 +208,40 @@ namespace Discord_RaceBot
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
             EntrantItem entrantInformation = database.MarkEntrantFinished(Race.RaceId, UserId, Race.StartTime);
             database.Dispose();
-            
-            //if we get a result back from MarkEntrantFinished, let the racer know their place and finish time
-            if (entrantInformation != null)
-            {
-                var raceRole = raceServer.GetRole(Race.RoleId);
-                await entrant.RemoveRoleAsync(raceRole);                
-                await raceChannel.SendMessageAsync(entrant.Mention + ", you finished in **"+AddOrdinal(entrantInformation.Place) +"** place with a time of **" + entrantInformation.FinishedTime + "**");
-                await AttemptRaceFinishAsync(Race);
-            }
-            //the racer probably isn't entered in the race if we don't get a result back
-            else await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't mark you as Done (are you entered?)");
 
+            //if we get a result back from MarkEntrantFinished, let the racer know their place and finish time
+            if (entrantInformation == null) return;
+            
+             var raceRole = raceServer.GetRole(Race.RoleId);
+             await entrant.RemoveRoleAsync(raceRole);                
+             await raceChannel.SendMessageAsync(entrant.Mention + ", you finished in **"+AddOrdinal(entrantInformation.Place) +"** place with a time of **" + entrantInformation.FinishedTime + "**");
+             await AttemptRaceFinishAsync(Race);
+        }
+
+        public static async Task MarkEntrantNotDoneAsync(RaceItem Race, ulong UserId)
+        {
+            //Get the required information from Discord
+            var raceServer = client.GetGuild(Globals.GuildId);
+            var entrant = raceServer.GetUser(UserId);
+            var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
+            
+
+            //Attempt to update the database. If the update function returns null, then the user isn't entered in the race
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            if (database.MarkEntrantNotFinished(Race.RaceId, UserId)) return;
+            var raceRole = raceServer.GetRole(Race.RoleId);
+            await entrant.AddRoleAsync(raceRole);
+
+            await raceChannel.SendMessageAsync(entrant.Mention + ", I marked you as not done. Keep racing!");
+
+            if(Race.Status == "Recently Completed")
+            {
+                database.UpdateRace(Race.RaceId, Status: "In Progress");
+                RemoveTimer(_completedRaceTimerList, Race.RaceId);
+                _ = UpdateRacesChannelAsync();
+            }
+            _ = UpdateChannelTopicAsync(Race.RaceId);
+            database.Dispose();
         }
 
         public static async Task RemoveEntrantAsync(RaceItem Race, ulong UserId)
@@ -234,8 +255,7 @@ namespace Discord_RaceBot
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
 
             //attempt to delete the entrant from the race. If DeleteEntrant returns true, they aren't entered in the race
-            if (database.DeleteEntrant(Race.RaceId, UserId)) await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't remove you from the race (are you entered?)");
-            else
+            if (!database.DeleteEntrant(Race.RaceId, UserId))
             {
                 await entrant.RemoveRoleAsync(raceRole);
                 await raceChannel.SendMessageAsync(entrant.Mention + ", you have been removed from the race.");
@@ -260,7 +280,6 @@ namespace Discord_RaceBot
             //if no result was returned, the user isn't entered
             if(entrantStatus == null)
             {
-                await raceChannel.SendMessageAsync(entrant.Mention + ", I couldn't forfeit you from the race (are you entered?)");
                 database.Dispose();
                 return;
             }
@@ -268,7 +287,6 @@ namespace Discord_RaceBot
             //We can't forfeit a player who isn't still racing.
             if(entrantStatus.Status != "Ready")
             {
-                await raceChannel.SendMessageAsync(entrant.Mention + ", you can't use that command right now.");
                 database.Dispose();
                 return;
             }
@@ -332,7 +350,7 @@ namespace Discord_RaceBot
                     newTimer.Start();
 
                     //check for and remove any force start timers that may be waiting to fire
-                    RemoveForceStartTimer(Race.RaceId);
+                    RemoveTimer(_forceStartTimerList, Race.RaceId);
                     _ = UpdateRacesChannelAsync();
                     raceIsStarting = true;
                 }
@@ -368,6 +386,7 @@ namespace Discord_RaceBot
                 newTimer.Elapsed += DeleteFinishedRaceAsync;
                 newTimer.Enabled = true;
                 newTimer.Start();
+                _completedRaceTimerList.Add(newTimer);
                 raceIsFinishing = true;
                 _ = UpdateRacesChannelAsync();
 
@@ -523,17 +542,17 @@ namespace Discord_RaceBot
             }
         }
 
-        private static void RemoveForceStartTimer(ulong RaceId)
+        private static void RemoveTimer(List<CountdownTimer> timerList, ulong RaceId)
         {
             //When we do something that would interfere with a race that is about to force start, we need to remove the
             //force start timer to prevent it from firing.
-            foreach (CountdownTimer timer in _forceStartTimerList)
+            foreach (CountdownTimer timer in timerList)
             {
                 if (timer.race.RaceId == RaceId)
                 {
                     timer.Stop();
                     timer.Dispose();
-                    _forceStartTimerList.Remove(timer);
+                    timerList.Remove(timer);
                     break;
                 }
             }
