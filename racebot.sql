@@ -1,9 +1,5 @@
-
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-SET AUTOCOMMIT = 0;
-START TRANSACTION;
 SET time_zone = "+00:00";
-
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -12,15 +8,14 @@ SET time_zone = "+00:00";
 
 
 CREATE TABLE `entries` (
-  `ID` bigint(20) NOT NULL,
+  `ID` bigint(20) UNSIGNED NOT NULL,
   `RaceId` bigint(20) UNSIGNED NOT NULL,
   `UserId` bigint(20) UNSIGNED DEFAULT NULL,
-  `Status` enum('Not ready','Ready','Done','Forfeited','Disqualified') COLLATE utf8_bin DEFAULT NULL,
+  `Status` enum('Not Ready','Ready','Done','Forfeited','Disqualified') COLLATE utf8_bin DEFAULT NULL,
   `FinishedTime` time DEFAULT NULL,
   `Place` int(11) DEFAULT NULL,
   `Comment` tinytext COLLATE utf8_bin
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-
 
 CREATE TABLE `races` (
   `ID` bigint(20) UNSIGNED NOT NULL,
@@ -29,7 +24,7 @@ CREATE TABLE `races` (
   `RoleId` bigint(20) UNSIGNED DEFAULT NULL,
   `Owner` bigint(20) UNSIGNED DEFAULT NULL,
   `Description` tinytext COLLATE utf8_bin,
-  `Status` enum('Entry Open','Countdown','In Progress','Recently Completed','Complete','Aborted') COLLATE utf8_bin DEFAULT NULL,
+  `Status` enum('Entry Open','Countdown','In Progress','Recently Completed','Complete','Aborted','Hold') COLLATE utf8_bin DEFAULT NULL,
   `StartTime` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 
@@ -37,19 +32,14 @@ CREATE TABLE `races` (
 ALTER TABLE `entries`
   ADD PRIMARY KEY (`ID`);
 
-
 ALTER TABLE `races`
   ADD PRIMARY KEY (`ID`);
 
 
 ALTER TABLE `entries`
-  MODIFY `ID` bigint(20) NOT NULL AUTO_INCREMENT;
-
-
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=61;
 ALTER TABLE `races`
-  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
-COMMIT;
-
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;

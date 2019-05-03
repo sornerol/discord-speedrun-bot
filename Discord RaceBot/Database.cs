@@ -212,6 +212,31 @@ namespace Discord_RaceBot
             return entrant;
         }
 
+        public bool MarkEntrantNotFinished(ulong RaceId, ulong UserId)
+        {
+            MySqlCommand cmd;
+            int result;
+            
+            try
+            {
+                //Build the command
+                cmd = _connection.CreateCommand();
+                cmd.CommandText = "UPDATE entries SET Status = 'Ready',FinishedTime = NULL,Place = NULL  WHERE RaceId = @RaceId AND UserId = @UserId";
+                cmd.Parameters.AddWithValue("@RaceId", RaceId);
+                cmd.Parameters.AddWithValue("@UserId", UserId);
+                result = cmd.ExecuteNonQuery();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Exception thrown: " + e.Message);
+                throw;
+            }
+            //If the UserId/RaceId combo exists in the entries table, the userid/raceid combo was updated.
+            if (result > 0) return false;
+
+            return true;
+        }
+
         /*
          * GetRaceInformation(): Returns the race information for [RaceId]
          */

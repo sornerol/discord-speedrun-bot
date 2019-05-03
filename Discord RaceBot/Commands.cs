@@ -16,14 +16,15 @@ namespace Discord_RaceBot
     {
         [Command("startrace")]
         [Summary("Opens a new race channel in the Discord server")]
-        public async Task StartRaceAsync([Remainder][Summary("Description for the race channel")] string description)
+        public Task StartRaceAsync([Remainder][Summary("Description for the race channel")] string description)
         {
             //RaceBot should only handle this command if it comes from #racebot
-            if (!(Context.Channel.Id == Globals.RacebotChannelId)) return;
+            if (!(Context.Channel.Id == Globals.RacebotChannelId)) return Task.CompletedTask;
 
             string cleanDescription = CleanDescription(description);                       
 
-            await RaceManager.NewRaceAsync(cleanDescription, Context.User.Id);
+            Task.Factory.StartNew(()=> RaceManager.NewRaceAsync(cleanDescription, Context.User.Id));
+            return Task.CompletedTask;
         }
         
         [Command("join")]
@@ -43,11 +44,7 @@ namespace Discord_RaceBot
             database.Dispose();
 
             //Verify that the race is still open to entry          
-            if (race.Status != "Entry Open")
-            {
-                await ReplyAsync(Context.User.Mention + ", this race isn't open for entries anymore. Find a different one or start your own in the <#" + Globals.RacebotChannelId + "> channel.");
-                return;
-            }           
+            if (race.Status != "Entry Open") return;      
 
             await RaceManager.AddEntrantAsync(race, Context.User.Id);
         }
@@ -66,11 +63,7 @@ namespace Discord_RaceBot
             RaceItem race = database.GetRaceInformation(RaceId);
             database.Dispose();
 
-            if (race.Status != "Entry Open" && race.Status != "Countdown")
-            {
-                await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
-                return;
-            }            
+            if (race.Status != "Entry Open" && race.Status != "Countdown") return;                    
 
             await RaceManager.SetEntrantStatusAsync(race, Context.User.Id, "Ready");
         }
@@ -90,12 +83,8 @@ namespace Discord_RaceBot
             RaceItem race = database.GetRaceInformation(RaceId);
             database.Dispose();
 
-            if (race.Status != "Entry Open")
-            {
-                await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
-                return;
-            }
-
+            if (race.Status != "Entry Open") return;
+            
             await RaceManager.SetEntrantStatusAsync(race, Context.User.Id, "Not Ready");
         }
 
@@ -113,26 +102,41 @@ namespace Discord_RaceBot
             RaceItem race = database.GetRaceInformation(RaceId);
             database.Dispose();
 
-            if (race.Status != "In Progress")
-            {
-                await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
-                return;
-            }
+            if (race.Status != "In Progress") return;
 
             await RaceManager.MarkEntrantDoneAsync(race, Context.User.Id);
         }
 
-        [Command("quit")]
-        [Summary("Removes the user from the race. If the race has started, it will be recorded as a forfeit.")]
-        public async Task QuitAsync()
+        [Command("notdone")]
+        [Summary("Used when a racer accidentally uses the .done command")]
+        public async Task NotDoneAsync()
         {
             //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
             SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId))
-            {
-                await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
-                return;
-            }
+            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
+
+            //we need to get the race information from the database
+            ulong RaceId = GetRaceId(Context.Channel.Name);
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            RaceItem race = database.GetRaceInformation(RaceId);
+            EntrantItem entrant = database.GetEntrantInformation(RaceId, Context.User.Id);
+            database.Dispose();
+
+            //don't continue with this command if the entrant isn't marked done.
+            if (entrant.Status != "Done") return;
+
+            if (race.Status != "In Progress" && race.Status != "Recently Completed") return;
+
+            await RaceManager.MarkEntrantNotDoneAsync(race, Context.User.Id);
+        }
+
+        [Command("quit")]
+        [Summary("Removes the user from the race. If the race has started, it will be recorded as a forfeit.")]
+        public Task QuitAsync()
+        {
+            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
+            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
+            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return Task.CompletedTask;
 
             //we need to get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
@@ -140,18 +144,20 @@ namespace Discord_RaceBot
             RaceItem race = database.GetRaceInformation(RaceId);
             database.Dispose();
 
+            //depending on the race status, choose the correct way to handle the withdrawal (either remove outright or mark as forfeited.
             if (race.Status == "Entry Open" || race.Status == "Countdown") _ = RaceManager.RemoveEntrantAsync(race, Context.User.Id);
             else if (race.Status == "In Progress") _ = RaceManager.ForfeitEntrantAsync(race, Context.User.Id);
-            else await ReplyAsync(Context.User.Mention + ", you can't use that command right now.");
+
+            return Task.CompletedTask;
         }
 
         [Command("time")]
         [Summary("Displays how much time has elapsed since the race began.")]
-        public async Task TimeAsync()
+        public Task TimeAsync()
         {
             //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
             SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
+            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return Task.CompletedTask;
 
             //we need the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
@@ -160,13 +166,10 @@ namespace Discord_RaceBot
             database.Dispose();
 
             //Verify that the race is still open to entry          
-            if (race.Status != "In Progress")
-            {
-                await ReplyAsync(Context.User.Mention + ", you can only use this command for a race that is in progress.");
-                return;
-            }
+            if (race.Status != "In Progress") return Task.CompletedTask;
 
             _ = RaceManager.ShowTimeAsync(race);
+            return Task.CompletedTask;
         }
 
         [Command("comment")]
@@ -210,19 +213,10 @@ namespace Discord_RaceBot
             if (!userHasPermission && race.Owner == Context.User.Id)
             {
                 if (race.Status == "Entry Open") userHasPermission = true;
-                else
-                {
-                    await ReplyAsync(Context.User.Mention + ", you may not cancel a race that's in progress. If you really need to cancel the race, ask a moderator in the help channel.");
-                    return;
-                }
             }
-            
-            //If the user isn't allowed to use this command, let them know and return
-            if (!userHasPermission)
-            {
-                await ReplyAsync(user.Mention + ", only moderators and the race owner can use this command.");
-                return;
-            }
+
+            //If the user isn't allowed to use this command, return
+            if (!userHasPermission) return;
 
             //users can only cancel "Entry Open" or "In Progress" races
             if (race.Status == "Entry Open" || race.Status == "In Progress")
@@ -230,7 +224,6 @@ namespace Discord_RaceBot
                 await RaceManager.DeleteRaceAsync(race, "Aborted");
                 _ = RaceManager.UpdateRacesChannelAsync();
             }
-            else await ReplyAsync(user.Mention + ", you can't use that command right now.");
         }
 
         [Command("setdescription")]
@@ -265,18 +258,11 @@ namespace Discord_RaceBot
             if (!userHasPermission && race.Owner == Context.User.Id)
             {
                 if (race.Status == "Entry Open") userHasPermission = true;
-                else
-                {
-                    await ReplyAsync(Context.User.Mention + ", you can't change the race description anymore. If you really need to change the race description, ask a moderator in the help channel.");
-                    database.Dispose();
-                    return;
-                }
             }
            
-            //If the user isn't allowed to use this command, let them know and return
+            //If the user isn't allowed to use this command, return
             if (!userHasPermission)
             {
-                await ReplyAsync(user.Mention + ", only moderators and the race owner can use this command.");
                 database.Dispose();
                 return;
             }
@@ -291,11 +277,11 @@ namespace Discord_RaceBot
 
         [Command("forcestart")]
         [Summary("Force a race to start")]
-        public async Task ForceStartAsync()
+        public Task ForceStartAsync()
         {
             //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
             SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
+            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return Task.CompletedTask;
 
             //This is a moderator-only command
             var user = Context.Guild.GetUser(Context.User.Id);
@@ -313,11 +299,7 @@ namespace Discord_RaceBot
             }
 
             //If the user isn't allowed to use this command, let them know and return
-            if (!userHasPermission)
-            {
-                await ReplyAsync(user.Mention + ", only moderators are allowed to force start races. Ask a moderator in the help channel if you need to force start this race."); 
-                return;
-            }
+            if (!userHasPermission) return Task.CompletedTask;
 
             //get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
@@ -327,11 +309,12 @@ namespace Discord_RaceBot
 
             //Start the process of force starting the race
             _ = RaceManager.BeginForceStartAsync(race);
+            return Task.CompletedTask;
         }
 
         [Command("purge")]
         [Summary("Clears the messages in a channel")]
-        public async Task PurgeAsync()
+        public Task PurgeAsync()
         {
             //This is a moderator-only command
             var user = Context.Guild.GetUser(Context.User.Id);
@@ -349,12 +332,11 @@ namespace Discord_RaceBot
             }
 
             //return if the user doesn't have permission to use the command
-            if (!userHasPermission) return;
+            if (!userHasPermission) return Task.CompletedTask;
 
             SocketTextChannel currentChannel = (SocketTextChannel)Context.Guild.GetChannel(Context.Channel.Id);
-
-            await PurgeChannelAsync(currentChannel);
-            return;
+            Task.Factory.StartNew(() => PurgeChannelAsync(currentChannel));
+            return Task.CompletedTask;
         }
 
         [Command("refresh")]
@@ -370,7 +352,6 @@ namespace Discord_RaceBot
             List<SocketRole> userRoles = user.Roles.ToList<SocketRole>();
             bool userHasPermission = false;
 
-            //If the user is a moderator, they may use this command as well
             foreach (SocketRole item in userRoles)
             {
                 if (item.Name.ToLower() == "moderator")
