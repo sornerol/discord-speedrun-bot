@@ -21,7 +21,7 @@ namespace Discord_RaceBot
             //RaceBot should only handle this command if it comes from #racebot
             if (!(Context.Channel.Id == Globals.RacebotChannelId)) return Task.CompletedTask;
 
-            string cleanDescription = CleanDescription(description);                       
+            string cleanDescription = CleanString(description, 50);                       
 
             Task.Factory.StartNew(()=> RaceManager.NewRaceAsync(cleanDescription, Context.User.Id));
             return Task.CompletedTask;
@@ -29,12 +29,9 @@ namespace Discord_RaceBot
         
         [Command("join")]
         [Summary("Adds the user to the race. Must be used within a race channel")]
+        [RequireCategory("race channels")]
         public async Task JoinAsync()
         {
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
-
             //get the RaceId by removing "race-" from the channel name we're in
             ulong RaceId = GetRaceId(Context.Channel.Name);
 
@@ -51,12 +48,9 @@ namespace Discord_RaceBot
         
         [Command("ready")]
         [Summary("Sets a racer's status to 'ready'")]
+        [RequireCategory("race channels")]
         public async Task ReadyAsync()
         {
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
-
             //This command is only available when the race is open for entry, so we need to get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
@@ -70,13 +64,9 @@ namespace Discord_RaceBot
 
         [Command("notready")]
         [Summary("Sets a racer's status to 'notready'")]
+        [RequireCategory("race channels")]
         public async Task NotReadyAsync()
         {
-
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
-
             //This command is only available when the race is open for entry, so we need to get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
@@ -90,12 +80,9 @@ namespace Discord_RaceBot
 
         [Command("done")]
         [Summary("Used when a racer has completed the race goal")]
+        [RequireCategory("race channels")]
         public async Task DoneAsync()
         {
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
-
             //we need to get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
@@ -109,12 +96,9 @@ namespace Discord_RaceBot
 
         [Command("notdone")]
         [Summary("Used when a racer accidentally uses the .done command")]
+        [RequireCategory("race channels")]
         public async Task NotDoneAsync()
         {
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
-
             //we need to get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
@@ -132,12 +116,9 @@ namespace Discord_RaceBot
 
         [Command("quit")]
         [Summary("Removes the user from the race. If the race has started, it will be recorded as a forfeit.")]
+        [RequireCategory("race channels")]
         public Task QuitAsync()
         {
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return Task.CompletedTask;
-
             //we need to get the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
@@ -153,12 +134,9 @@ namespace Discord_RaceBot
 
         [Command("time")]
         [Summary("Displays how much time has elapsed since the race began.")]
+        [RequireCategory("race channels")]
         public Task TimeAsync()
         {
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return Task.CompletedTask;
-
             //we need the race information from the database
             ulong RaceId = GetRaceId(Context.Channel.Name);
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
@@ -174,6 +152,7 @@ namespace Discord_RaceBot
 
         [Command("comment")]
         [Summary("Records a comment for the entrant.")]
+        [RequireCategory("race channels")]
         public async Task CommentAsync([Remainder][Summary("The comment to leave for this entrant")] string comment)
         {
 
@@ -182,12 +161,9 @@ namespace Discord_RaceBot
 
         [Command("cancel")]
         [Summary("Cancels the race and deletes the channels/role")]
+        [RequireCategory("race channels")]
         public async Task CancelAsync()
         {
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
-
             ulong RaceId = GetRaceId(Context.Channel.Name);
             //get the race information from the database
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
@@ -228,12 +204,9 @@ namespace Discord_RaceBot
 
         [Command("setdescription")]
         [Summary("Changes the description for the race")]
+        [RequireCategory("race channels")]
         public async Task SetDescriptionAsync([Remainder][Summary("Description for the race channel")] string description)
         {
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
-
             ulong RaceId = GetRaceId(Context.Channel.Name);
             //get the race information from the database
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
@@ -268,7 +241,7 @@ namespace Discord_RaceBot
             }
 
             //Clean the description, then set the new description.
-            string cleanedDescription = CleanDescription(description);
+            string cleanedDescription = CleanString(description, 50);
             database.UpdateRace(race.RaceId, Description: cleanedDescription);
             database.Dispose();
             _ = RaceManager.UpdateChannelTopicAsync(race.RaceId);
@@ -277,12 +250,9 @@ namespace Discord_RaceBot
 
         [Command("forcestart")]
         [Summary("Force a race to start")]
+        [RequireCategory("race channels")]
         public Task ForceStartAsync()
         {
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return Task.CompletedTask;
-
             //This is a moderator-only command
             var user = Context.Guild.GetUser(Context.User.Id);
             List<SocketRole> userRoles = user.Roles.ToList<SocketRole>();
@@ -341,12 +311,9 @@ namespace Discord_RaceBot
 
         [Command("refresh")]
         [Summary("Refreshes a race channel")]
+        [RequireCategory("race channels")]
         public async Task RefreshAsync()
         {
-            //We can't process this message if it's not in a race channel, so we need to make sure it's coming from one
-            SocketTextChannel messageChannel = (SocketTextChannel)Context.Client.GetChannel(Context.Channel.Id);
-            if (!(messageChannel.CategoryId == Globals.RacesCategoryId)) return;
-
             //This is a moderator only command
             var user = Context.Guild.GetUser(Context.User.Id);
             List<SocketRole> userRoles = user.Roles.ToList<SocketRole>();
@@ -377,7 +344,7 @@ namespace Discord_RaceBot
 
         private ulong GetRaceId(string channelName) => Convert.ToUInt64(channelName.Remove(0, 5));
 
-        //This method is used to purge a channel asyncronously (to hopefully prevent blocking issues)
+        //This method should be called in a separate thread to prevent the MessageReceived handler from taking too long to return 
         private async Task PurgeChannelAsync(SocketTextChannel channel)
         {
             var oldMessages = await channel.GetMessagesAsync().FlattenAsync();
@@ -398,10 +365,13 @@ namespace Discord_RaceBot
             }
         }
 
-        private string CleanDescription(string description)
+        private string CleanString(string originalString, int length)
         {
-            string cleanedString = description.Replace("\n", " ");
-            if (cleanedString.Length > 50) cleanedString = cleanedString.Substring(0, 47) + "...";
+            //Remove newlines from the string
+            string cleanedString = originalString.Replace("\n", " ");
+
+            //If the string is too long, shorten it and add three periods to the end
+            if (cleanedString.Length > length) cleanedString = cleanedString.Substring(0, length - 3) + "...";
 
             return cleanedString;
         }

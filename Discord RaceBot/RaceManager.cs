@@ -11,7 +11,7 @@ namespace Discord_RaceBot
     public static class RaceManager
     {
         //Save the Discord client object so we can access Discord from this class
-        public static DiscordSocketClient client { get; set; }
+        public static DiscordSocketClient Client { get; set; }
 
         //We may need to stop some timers from firing. We'll store these timers in a list
         private static List<CountdownTimer> _forceStartTimerList = new List<CountdownTimer>();
@@ -30,7 +30,7 @@ namespace Discord_RaceBot
             database.Dispose();
 
             //get the races channel so we can send messages
-            SocketTextChannel racesChannel = (SocketTextChannel)client.GetChannel(Globals.RacesChannelId);
+            SocketTextChannel racesChannel = (SocketTextChannel)Client.GetChannel(Globals.RacesChannelId);
 
             //for building the message
             string message;
@@ -89,7 +89,7 @@ namespace Discord_RaceBot
             ulong newRaceId = database.NewRace(description, owner);
             
             //Get the server from Discord
-            var guild = client.GetGuild(Globals.GuildId);
+            var guild = Client.GetGuild(Globals.GuildId);
 
             //Create a role for the race.
             var newRaceRole = await guild.CreateRoleAsync("race-" + newRaceId);
@@ -142,7 +142,7 @@ namespace Discord_RaceBot
             database.Dispose();
 
             //Get the channels and role from Discord
-            var guild = client.GetGuild(Globals.GuildId);
+            var guild = Client.GetGuild(Globals.GuildId);
             var textChannel = guild.GetChannel(Race.TextChannelId);
             var voiceChannel = guild.GetChannel(Race.VoiceChannelId);
             var raceRole = guild.GetRole(Race.RoleId);
@@ -159,7 +159,7 @@ namespace Discord_RaceBot
         public static async Task AddEntrantAsync(RaceItem Race, ulong UserId)
         {
             //get the required information from Discord
-            var raceServer = client.GetGuild(Globals.GuildId);
+            var raceServer = Client.GetGuild(Globals.GuildId);
             var entrant = raceServer.GetUser(UserId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
 
@@ -183,7 +183,7 @@ namespace Discord_RaceBot
 
         public static async Task SetEntrantStatusAsync(RaceItem Race, ulong UserId, string Status)
         {
-            var raceServer = client.GetGuild(Globals.GuildId);
+            var raceServer = Client.GetGuild(Globals.GuildId);
             var entrant = raceServer.GetUser(UserId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
             DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
@@ -200,7 +200,7 @@ namespace Discord_RaceBot
         public static async Task MarkEntrantDoneAsync(RaceItem Race, ulong UserId)
         {
             //Get the required information from Discord
-            var raceServer = client.GetGuild(Globals.GuildId);
+            var raceServer = Client.GetGuild(Globals.GuildId);
             var entrant = raceServer.GetUser(UserId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
 
@@ -221,7 +221,7 @@ namespace Discord_RaceBot
         public static async Task MarkEntrantNotDoneAsync(RaceItem Race, ulong UserId)
         {
             //Get the required information from Discord
-            var raceServer = client.GetGuild(Globals.GuildId);
+            var raceServer = Client.GetGuild(Globals.GuildId);
             var entrant = raceServer.GetUser(UserId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
             
@@ -247,7 +247,7 @@ namespace Discord_RaceBot
         public static async Task RemoveEntrantAsync(RaceItem Race, ulong UserId)
         {
             //get required info from Discord
-            var guild = client.GetGuild(Globals.GuildId);
+            var guild = Client.GetGuild(Globals.GuildId);
             var raceChannel = guild.GetTextChannel(Race.TextChannelId);
             var raceRole = guild.GetRole(Race.RoleId);
             var entrant = guild.GetUser(UserId);
@@ -267,7 +267,7 @@ namespace Discord_RaceBot
         public static async Task ForfeitEntrantAsync(RaceItem Race, ulong UserId)
         {
             //get required info from Discord
-            var guild = client.GetGuild(Globals.GuildId);
+            var guild = Client.GetGuild(Globals.GuildId);
             var raceChannel = guild.GetTextChannel(Race.TextChannelId);
             var raceRole = guild.GetRole(Race.RoleId);
             var entrant = guild.GetUser(UserId);
@@ -306,7 +306,7 @@ namespace Discord_RaceBot
 
         public static async Task ShowTimeAsync(RaceItem Race)
         {
-            var raceServer = client.GetGuild(Globals.GuildId);
+            var raceServer = Client.GetGuild(Globals.GuildId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
 
             //calculate how much time has passed since the race start time and now
@@ -322,7 +322,7 @@ namespace Discord_RaceBot
 
             EntrantsSummary entrantsSummary = database.GetEntrantsSummary(Race.RaceId);
 
-            var raceServer = client.GetGuild(Globals.GuildId);
+            var raceServer = Client.GetGuild(Globals.GuildId);
             var raceRole = raceServer.GetRole(Race.RoleId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
 
@@ -367,7 +367,7 @@ namespace Discord_RaceBot
 
             EntrantsSummary entrantsSummary = database.GetEntrantsSummary(Race.RaceId);
 
-            var raceServer = client.GetGuild(Globals.GuildId);
+            var raceServer = Client.GetGuild(Globals.GuildId);
             var raceRole = raceServer.GetRole(Race.RoleId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
 
@@ -399,7 +399,7 @@ namespace Discord_RaceBot
 
         public static async Task BeginForceStartAsync(RaceItem Race)
         {
-            var raceServer = client.GetGuild(Globals.GuildId);
+            var raceServer = Client.GetGuild(Globals.GuildId);
             var raceRole = raceServer.GetRole(Race.RoleId);
             var raceChannel = raceServer.GetTextChannel(Race.TextChannelId);
 
@@ -431,7 +431,7 @@ namespace Discord_RaceBot
             EntrantsSummary entrantsSummary = database.GetEntrantsSummary(race.RaceId);
             database.Dispose();
 
-            SocketTextChannel raceChannel = (SocketTextChannel)client.GetChannel(race.TextChannelId);
+            SocketTextChannel raceChannel = (SocketTextChannel)Client.GetChannel(race.TextChannelId);
             string newTopic = "**" + race.Status + "** | " + race.Description;
 
             if(race.Status=="Entry Open")
@@ -449,7 +449,7 @@ namespace Discord_RaceBot
         private static async void CountdownRaceAsync(Object source, ElapsedEventArgs e)
         {
             RaceItem race = ((CountdownTimer)source).race;
-            var raceChannel = (SocketTextChannel)client.GetChannel(race.TextChannelId);
+            var raceChannel = (SocketTextChannel)Client.GetChannel(race.TextChannelId);
                         
             await raceChannel.SendMessageAsync("**3**");
             Thread.Sleep(1000);
@@ -477,8 +477,8 @@ namespace Discord_RaceBot
         private static async void ForceStartRaceAsync(Object source, ElapsedEventArgs e)
         {
             RaceItem race = ((CountdownTimer)source).race;
-            var raceChannel = (SocketTextChannel)client.GetChannel(race.TextChannelId);
-            var guild = client.GetGuild(Globals.GuildId);
+            var raceChannel = (SocketTextChannel)Client.GetChannel(race.TextChannelId);
+            var guild = Client.GetGuild(Globals.GuildId);
             var raceRole = guild.GetRole(race.RoleId);
 
             //get the list of players who are not ready

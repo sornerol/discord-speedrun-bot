@@ -37,7 +37,7 @@ namespace Discord_RaceBot
             await _commandHandler.InstallCommandsAsync();
             
             //Let RaceManager have access to the DiscordSocketClient
-            RaceManager.client = _client;
+            RaceManager.Client = _client;
             
             //block this task until the program is closed
             await Task.Delay(-1);

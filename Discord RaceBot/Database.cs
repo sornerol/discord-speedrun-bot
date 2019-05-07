@@ -8,7 +8,7 @@ namespace Discord_RaceBot
     public class DatabaseHandler:IDisposable
     {
         //_connection stores the MySqlConnection
-        private MySqlConnection _connection;
+        private readonly MySqlConnection _connection;
         private bool _disposed = false;
         
         //Connect with the passed connection string when the object is created
