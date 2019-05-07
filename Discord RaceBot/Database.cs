@@ -180,7 +180,7 @@ namespace Discord_RaceBot
         public EntrantItem MarkEntrantFinished(ulong RaceId, ulong UserId, DateTime StartTime)
         {
             MySqlCommand cmd;
-            int result = 0;
+            int result;
 
             TimeSpan raceTime = StartTime - DateTime.Now;
 
