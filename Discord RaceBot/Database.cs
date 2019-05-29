@@ -30,13 +30,16 @@ namespace Discord_RaceBot
         /* 
          * NewRace() Creates a new races with [description] belonging to [UserId]
          */
-        public ulong NewRace(string description, ulong UserId)
+        public ulong NewRace(string description, ulong UserId, ulong TextChannelId, ulong VoiceChannelId, ulong RoleId)
         {
             MySqlCommand cmd;
             try
             {
                 cmd = _connection.CreateCommand();
-                cmd.CommandText = "INSERT INTO races(Owner,Description,Status)VALUES(@owner,@description,@status)";
+                cmd.CommandText = "INSERT INTO races(TextChannelId,VoiceChannelId,RoleId,Owner,Description,Status)VALUES(@textChannel,@voiceChannel,@role,@owner,@description,@status)";
+                cmd.Parameters.AddWithValue("@textChannel", TextChannelId);
+                cmd.Parameters.AddWithValue("@voiceChannel", VoiceChannelId);
+                cmd.Parameters.AddWithValue("@role", RoleId);
                 cmd.Parameters.AddWithValue("@owner", UserId);
                 cmd.Parameters.AddWithValue("@description", description);
                 cmd.Parameters.AddWithValue("@status", "Entry Open");
