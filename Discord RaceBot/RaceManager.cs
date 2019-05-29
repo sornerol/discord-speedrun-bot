@@ -83,46 +83,44 @@ namespace Discord_RaceBot
         }
 
         public static async Task NewRaceAsync(string description, ulong owner)
-        {
-            //Create the database record and get the new Race Id.
-            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
-            ulong newRaceId = database.NewRace(description, owner);
-            
+        {           
             //Get the server from Discord
             var guild = client.GetGuild(Globals.GuildId);
 
-            //Create a role for the race.
-            var newRaceRole = await guild.CreateRoleAsync("race-" + newRaceId);
-
-            //allow this role to be mentionable
-            await newRaceRole.ModifyAsync(x =>
-            {
-                x.Mentionable = true;
-            });
-
-            //Create a new text channel in the server
-            var newTextChannel = await guild.CreateTextChannelAsync("race-" + newRaceId,
+            //Create the new role, text channel, and voice channel with a temporary name.
+            var newRaceRole = await guild.CreateRoleAsync("race-new");           
+            var newTextChannel = await guild.CreateTextChannelAsync("race-new",
                 x =>
                 {
                     x.Topic = "**Entry Open** | " + description + " | Entered: 0 | Ready: 0";
                     x.CategoryId = Globals.RacesCategoryId;
                 });
-
-            //Create a voice channel as well.
-            var newVoiceChannel = await guild.CreateVoiceChannelAsync("race-" + newRaceId,
+            var newVoiceChannel = await guild.CreateVoiceChannelAsync("race-new",
                 x =>
                 {
                     x.CategoryId = Globals.RacesCategoryId;
                 });
-                        
-            //Update the race in the database with the new channels/role
-            database.UpdateRace(
-                newRaceId,
-                TextChannelId: newTextChannel.Id,
-                VoiceChannelId: newVoiceChannel.Id,
-                RoleId: newRaceRole.Id);
 
+            //Create the database record and get the new Race Id.
+            DatabaseHandler database = new DatabaseHandler(Globals.MySqlConnectionString);
+            ulong newRaceId = database.NewRace(description, owner, newTextChannel.Id, newVoiceChannel.Id, newRaceRole.Id);
             database.Dispose();
+
+            //Update the Discord objects with the correct name
+            string raceName = "race-" + newRaceId;
+            await newRaceRole.ModifyAsync(x =>
+            {
+                x.Name = raceName;
+                x.Mentionable = true;
+            });
+            await newTextChannel.ModifyAsync(x =>
+            {
+                x.Name = raceName;
+            });
+            await newVoiceChannel.ModifyAsync(x =>
+            {
+                x.Name = raceName;
+            });
 
             //reply to the command on #racebot
             var racebotChannel = guild.GetTextChannel(Globals.RacebotChannelId);
