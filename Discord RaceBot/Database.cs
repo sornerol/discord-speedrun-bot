@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Specialized;
 using System.Collections.Generic;
 using MySql.Data.MySqlClient;
 
@@ -55,24 +56,23 @@ namespace Discord_RaceBot
             string StartTime = null
             )
         {
-            Dictionary<string, string> fieldUpdates = new Dictionary<string, string>()
+            NameValueCollection fieldUpdates = new NameValueCollection();
             if (TextChannelId != 0) fieldUpdates.Add("TextChannelId", TextChannelId.ToString());
-            if (VoiceChannelId != 0) fieldUpdates.Add("VoiceChannelId", VoiceChannelId).ToString());
+            if (VoiceChannelId != 0) fieldUpdates.Add("VoiceChannelId", VoiceChannelId.ToString());
             if (RoleId != 0) fieldUpdates.Add("RoleId", RoleId.ToString());
             if (Description != null) fieldUpdates.Add("Description", Description);
             if (Status != null) fieldUpdates.Add("Status", Status);
             if (StartTime != null) fieldUpdates.Add("StartTime", StartTime);
 
             MySqlCommand cmd;
-           
             try
             {
                 cmd = _connection.CreateCommand();
                 cmd.CommandText = "UPDATE races SET ";
                 for(int i = 0; i < fieldUpdates.Count; i++) {
-                    string fieldName = fieldUpdates.Keys.ElementAt(i);
+                    string fieldName = fieldUpdates.GetKey(i);
                     string parameterName = "@" + fieldName;
-                    string parameterValue = fieldUpdates[fieldName];
+                    string parameterValue = fieldUpdates.Get(i);
 
                     cmd.CommandText += fieldName + " = " + parameterName;
                     cmd.Parameters.AddWithValue(parameterName, parameterValue);
