@@ -7,17 +7,14 @@ namespace Discord_RaceBot
 {
     public class DatabaseHandler:IDisposable
     {
-        //_connection stores the MySqlConnection
         private MySqlConnection _connection;
         private bool _disposed = false;
         
-        //Connect with the passed connection string when the object is created
         public DatabaseHandler(string connectionString)
         {
             this._connection = new MySqlConnection(connectionString);
             try
             {
-                //connect to the database
                 this._connection.Open();
             }
             catch (Exception e)
@@ -27,9 +24,6 @@ namespace Discord_RaceBot
             }
         }
         
-        /* 
-         * NewRace() Creates a new races with [description] belonging to [UserId]
-         */
         public ulong NewRace(string description, ulong UserId, ulong TextChannelId, ulong VoiceChannelId, ulong RoleId)
         {
             MySqlCommand cmd;
@@ -52,9 +46,6 @@ namespace Discord_RaceBot
             return (ulong)cmd.LastInsertedId;
         }
 
-        /*
-         *UpdateRace(): Updates the race in the database
-         */
         public bool UpdateRace(ulong RaceId,
             ulong TextChannelId = 0,
             ulong VoiceChannelId = 0,
@@ -64,36 +55,33 @@ namespace Discord_RaceBot
             string StartTime = null
             )
         {
-            //First, create a list containing the requested updates. We'll use these snippets to build the update string
-            List<string> fieldUpdates = new List<string>();
-            if (TextChannelId != 0) fieldUpdates.Add("TextChannelId = " + TextChannelId);
-            if (VoiceChannelId != 0) fieldUpdates.Add("VoiceChannelId = " + VoiceChannelId);
-            if (RoleId != 0) fieldUpdates.Add("RoleId = " + RoleId);
-            if (Description != null) fieldUpdates.Add("Description = '" + Description + "'");
-            if (Status != null) fieldUpdates.Add("Status = '" + Status + "'");
-            if (StartTime != null) fieldUpdates.Add("StartTime = '" + StartTime + "'");
+            Dictionary<string, string> fieldUpdates = new Dictionary<string, string>()
+            if (TextChannelId != 0) fieldUpdates.Add("TextChannelId", TextChannelId.ToString());
+            if (VoiceChannelId != 0) fieldUpdates.Add("VoiceChannelId", VoiceChannelId).ToString());
+            if (RoleId != 0) fieldUpdates.Add("RoleId", RoleId.ToString());
+            if (Description != null) fieldUpdates.Add("Description", Description);
+            if (Status != null) fieldUpdates.Add("Status", Status);
+            if (StartTime != null) fieldUpdates.Add("StartTime", StartTime);
 
             MySqlCommand cmd;
            
             try
             {
-                //Build the command
                 cmd = _connection.CreateCommand();
                 cmd.CommandText = "UPDATE races SET ";
-                //itemCount is used to determine if we need to put a comma in front of a value
-                int itemCount = 0;
-                //append each item in the update list to the update string
-                foreach(string item in fieldUpdates)
-                {
-                    //if this isn't the first item in the list, we need to add a comma to separate it from the previous item
-                    if(itemCount > 0)
-                    {
-                        cmd.CommandText += ",";
+                for(int i = 0; i < fieldUpdates.Count; i++) {
+                    string fieldName = fieldUpdates.Keys.ElementAt(i);
+                    string parameterName = "@" + fieldName;
+                    string parameterValue = fieldUpdates[fieldName];
+
+                    cmd.CommandText += fieldName + " = " + parameterName;
+                    cmd.Parameters.AddWithValue(parameterName, parameterValue);
+                    if (i + 1 < fieldUpdates.Count) {
+                        cmd.CommandText += ", ";
                     }
-                    cmd.CommandText += item;
-                    itemCount++;
                 }
-                cmd.CommandText += " WHERE ID = " + RaceId;
+                cmd.CommandText += " WHERE ID = @RaceId";
+                cmd.Parameters.AddWithValue("@RaceId", RaceId);
                 cmd.ExecuteNonQuery();                
             }
             catch (Exception e)
@@ -105,10 +93,6 @@ namespace Discord_RaceBot
             return false;
         }
         
-
-        /* 
-         * JoinRace(): Check to see if [UserId] is entered in [RaceId]. If not, add the user to the race.
-         */
         public bool JoinRace(ulong RaceId, ulong UserId)
         {
             MySqlCommand cmd;
@@ -128,10 +112,8 @@ namespace Discord_RaceBot
                 throw;
             }
 
-            //If the query returns a result, that means the player is already entered for the race.
             if (cmdResult != 0) return true;
 
-            //enter the player into the race.
             try
             {
                 cmd.CommandText = "INSERT INTO entries(RaceId,UserId,Status)VALUES(@RaceId,@UserId,@Status)";
@@ -147,16 +129,12 @@ namespace Discord_RaceBot
             return false;
         }
 
-        /*
-         * UpdateEntry(): Updates the status for [UserId] in [RaceId]
-         */
         public bool UpdateEntry(ulong RaceId, ulong UserId, string Status)
         {
             MySqlCommand cmd;
             int result;
             try
             {
-                //Build the command
                 cmd = _connection.CreateCommand();
                 cmd.CommandText = "UPDATE entries SET Status = @Status WHERE RaceId = @RaceId AND UserId = @UserId";
                 cmd.Parameters.AddWithValue("@Status", Status);
@@ -175,11 +153,7 @@ namespace Discord_RaceBot
             if (result > 0) return false;
             else return true;   //the update command didn't affect any rows, so we need to let the calling function know
         }
-
-        /*
-         * MarkEntrantFinished(): Sets [UserId's] status to Done and records the finish time for [RaceId].
-         */
-        
+      
         public EntrantItem MarkEntrantFinished(ulong RaceId, ulong UserId, DateTime StartTime)
         {
             MySqlCommand cmd;
