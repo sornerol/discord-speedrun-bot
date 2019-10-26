@@ -5,7 +5,7 @@ namespace Discord_RaceBot
 {
     static class Globals
     {
-        
+        public const string Version = "2019.10.26";
         public static ulong RacesChannelId;
         public static ulong RacebotChannelId;
         public static ulong RacesCategoryId;
