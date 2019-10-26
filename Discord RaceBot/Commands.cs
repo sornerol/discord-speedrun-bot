@@ -9,11 +9,19 @@ using Discord.WebSocket;
 
 namespace Discord_RaceBot
 {
-    /*
-     * The CommandsModule is the implementation of commands available to users.
-     */
     public class CommandsModule : ModuleBase<SocketCommandContext>
     {
+        [Command("version")]
+        [Summary("Displays Racebot's version.")]
+        public async Task CommandVersion()
+        {
+            //RaceBot should only handle this command if it comes from #racebot
+            if (!(Context.Channel.Id == Globals.RacebotChannelId)) return;
+
+            await ReplyAsync(Globals.Version);            
+
+            return;
+        }
         [Command("startrace")]
         [Summary("Opens a new race channel in the Discord server")]
         public Task CommandStartRace([Remainder][Summary("Description for the race channel")] string description)
