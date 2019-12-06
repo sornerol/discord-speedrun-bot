@@ -1,3 +1,4 @@
+![](https://github.com/sornerol/discord-speedrun-bot/workflows/Build/badge.svg)
 # Discord RaceBot
 Discord RaceBot is a Discord bot used to manage speedrun races. It is similar in functionality to SpeedRunsLive, an IRC-based speedrun race service.
 
